@@ -70,6 +70,10 @@ class ExpenseProvider extends ChangeNotifier {
   /// offers a manual retry (which also fires automatically on reconnect).
   bool get syncFailed => _syncGaveUp && pendingSyncCount > 0;
 
+  /// Grand total of this month's spending — ALL labeled debits, including large
+  /// one-off / fee payments held out of the budget. Used for net cash flow (the
+  /// money genuinely left the account); the headline + charts use the day-to-day
+  /// figure [budgetedThisMonth] instead so a one-off can't dominate the view.
   double get totalThisMonth {
     final now = DateTime.now();
     return _expenses
@@ -94,9 +98,9 @@ class ExpenseProvider extends ChangeNotifier {
   double get netThisMonth => incomeThisMonth - totalThisMonth;
 
   /// Spend per day of the current month so far (index 0 = the 1st), excluding
-  /// income and still-unlabeled rows — same set as [totalThisMonth], so the
-  /// bars sum to the headline total. Length = today's day-of-month. Feeds the
-  /// home spending-trend chart.
+  /// income, still-unlabeled rows, and one-off / fee payments held out of the
+  /// budget — same set as [budgetedThisMonth], so the bars sum to the headline.
+  /// Length = today's day-of-month. Feeds the home spending-trend chart.
   List<double> get dailySpendThisMonth {
     final now = DateTime.now();
     final days = now.day;
@@ -105,7 +109,8 @@ class ExpenseProvider extends ChangeNotifier {
       if (e.date.year != now.year ||
           e.date.month != now.month ||
           e.needsLabel ||
-          e.isIncome) {
+          e.isIncome ||
+          !e.inBudget) {
         continue;
       }
       // Clamp guards any odd future-dated row so the sum still matches the total.
@@ -139,13 +144,17 @@ class ExpenseProvider extends ChangeNotifier {
     ];
     final totals = {for (final m in months) key(m): 0.0};
     for (final e in _expenses) {
-      if (e.needsLabel || e.isIncome) continue;
+      // Day-to-day spend only — one-off / fee payments are tracked but kept out
+      // of the trend so a single big month doesn't distort the pattern.
+      if (e.needsLabel || e.isIncome || !e.inBudget) continue;
       final k = key(e.date);
       if (totals.containsKey(k)) totals[k] = totals[k]! + e.amount;
     }
     return [for (final m in months) (month: m, total: totals[key(m)]!)];
   }
 
+  /// Day-to-day spend per category this month (one-off / fee payments excluded),
+  /// for the home donut and the per-category budget bars.
   Map<String, double> get categoryTotals {
     final now = DateTime.now();
     final totals = <String, double>{};
@@ -153,7 +162,8 @@ class ExpenseProvider extends ChangeNotifier {
         e.date.year == now.year &&
         e.date.month == now.month &&
         !e.needsLabel &&
-        !e.isIncome)) {
+        !e.isIncome &&
+        e.inBudget)) {
       final cat = e.category ?? 'Other';
       totals[cat] = (totals[cat] ?? 0) + e.amount;
     }
@@ -192,23 +202,6 @@ class ExpenseProvider extends ChangeNotifier {
   List<Expense> get budgetReviewQueue =>
       _expenses.where((e) => e.budgetReview).toList()
         ..sort((a, b) => b.date.compareTo(a.date));
-
-  /// Per-category spend that counts toward the budget (one-offs excluded) — for
-  /// the per-category progress bars on the Budgets screen.
-  Map<String, double> get budgetedCategoryTotals {
-    final now = DateTime.now();
-    final totals = <String, double>{};
-    for (final e in _expenses.where((e) =>
-        e.date.year == now.year &&
-        e.date.month == now.month &&
-        !e.needsLabel &&
-        !e.isIncome &&
-        e.inBudget)) {
-      final cat = e.category ?? 'Other';
-      totals[cat] = (totals[cat] ?? 0) + e.amount;
-    }
-    return totals;
-  }
 
   /// Decide a payment's budget inclusion — used by the review card and the edit
   /// sheet's "Count toward budget" switch. Updates locally at once (optimistic),

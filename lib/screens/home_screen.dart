@@ -226,7 +226,7 @@ class _Body extends StatelessWidget {
                   onDecide: provider.setInBudget,
                 ),
               ),
-            if (provider.totalThisMonth > 0)
+            if (provider.budgetedThisMonth > 0)
               SliverToBoxAdapter(
                 child: SpendingChartCard(
                   daily: provider.dailySpendThisMonth,
@@ -300,7 +300,9 @@ class _SummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '₹${provider.totalThisMonth.toStringAsFixed(2)}',
+            // Day-to-day spend — one-off / fee payments are shown separately
+            // below so a single large payment can't dominate the headline.
+            '₹${provider.budgetedThisMonth.toStringAsFixed(2)}',
             style: Klaro.figures(size: 34, weight: FontWeight.w600),
           ),
           ListenableBuilder(

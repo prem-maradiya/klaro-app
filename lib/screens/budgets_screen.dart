@@ -23,7 +23,7 @@ class BudgetsScreen extends StatelessWidget {
           final budgets = BudgetService.instance;
           // Budget progress uses budgeted spend (one-off / fee payments held out),
           // matching the home budget bar.
-          final totals = provider.budgetedCategoryTotals;
+          final totals = provider.categoryTotals;
 
           return ListView(
             padding: const EdgeInsets.all(16),
