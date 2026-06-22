@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Play Store distribution: no SMS. The SMS permissions and receiver live
+         only in src/full, so the Play build ships SMS-free (passes Google's
+         review). Build with the play flavor and KLARO_SMS=false. -->
+</manifest>

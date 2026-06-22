@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Klaro K app icon">
+  <title>Klaro K</title>
+  <defs>
+    <linearGradient id="gm" gradientUnits="userSpaceOnUse" x1="160" y1="135" x2="372" y2="392"><stop offset="0" stop-color="#9A8CFF"/><stop offset="1" stop-color="#3F6BFF"/></linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="58%"><stop offset="0" stop-color="#2a2470" stop-opacity="0.85"/><stop offset="1" stop-color="#0E0D18" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#0E0D18"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+  <g transform="translate(256,256) scale(8) translate(-32,-32)">
+    <g fill="none" stroke="#26306E" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" transform="translate(1.8,2.4)">
+      <path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/>
+    </g>
+    <g fill="none" stroke="url(#gm)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/>
+    </g>
+    <g fill="none" stroke="#CFC9FF" stroke-width="2.3" stroke-linecap="round" opacity="0.5">
+      <path d="M19.7 17.5V46.5"/><path d="M23 30.5L43.3 16.7"/>
+    </g>
+  </g>
+</svg>

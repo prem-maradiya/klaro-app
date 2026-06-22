@@ -1,0 +1,111 @@
+name: expense_tracker
+description: "Automatic expense tracker via SMS parsing"
+publish_to: 'none'
+
+version: 1.11.0+13
+
+environment:
+  sdk: ^3.7.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # SMS reading on Android (maintained fork of the discontinued `telephony`,
+  # same API, fixes AGP 8 namespace + modern Android support)
+  another_telephony: ^0.4.1
+
+  # Contacts — to auto-categorize UPI payments to people you know as "Personal"
+  flutter_contacts: ^1.1.9
+
+  # HTTP client for FastAPI backend
+  http: ^1.2.0
+
+  # Local notifications for unknown UPI IDs
+  flutter_local_notifications: ^17.2.4
+
+  # Runtime permissions (SMS, notifications)
+  permission_handler: ^11.3.1
+
+  # Connectivity listener — auto-sync the moment the phone is back online
+  connectivity_plus: ^6.1.0
+
+  # State management
+  provider: ^6.1.2
+
+  # Local storage for offline queue
+  shared_preferences: ^2.3.2
+
+  # Date formatting
+  intl: ^0.19.0
+
+  # Auth + accounts (Phase 7): Supabase client (email/password + Google OAuth);
+  # persists and refreshes the session, supplies the JWT the API verifies.
+  supabase_flutter: ^2.8.0
+
+  # Open support email + hosted legal/help pages from Settings (Phase 7.4)
+  url_launcher: ^6.3.0
+
+  # Error tracking (Phase 7.5) — enabled only when a SENTRY_DSN is compiled in
+  # via a dart-define; a no-op otherwise. 9.x targets Kotlin 1.8+ (8.x pinned
+  # language version 1.6, which the project's Kotlin 2.2 compiler rejects).
+  sentry_flutter: ^9.22.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+  # Launcher icon + native splash generators (Klaro brand)
+  flutter_launcher_icons: ^0.14.3
+  flutter_native_splash: ^2.4.4
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/brand/klaro_mark.png
+
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+          weight: 600
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+    - family: JetBrains Mono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/JetBrainsMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/JetBrainsMono-SemiBold.ttf
+          weight: 600
+
+# ---- Klaro launcher icon (adaptive: fg mark / tile bg / monochrome) ----
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "design/klaro/klaro-handoff-v1/klaro-k-enh-1024.png"
+  adaptive_icon_background: "assets/brand/icon_bg.png"
+  adaptive_icon_foreground: "assets/brand/icon_fg.png"
+  adaptive_icon_monochrome: "assets/brand/icon_mono.png"
+
+# ---- Klaro native splash (tile ink + K mark) ----
+flutter_native_splash:
+  color: "#0C0B14"
+  image: "assets/brand/klaro_mark.png"
+  android_12:
+    color: "#0C0B14"
+    image: "assets/brand/splash_mark_1152.png"
+  ios: false
+  web: false

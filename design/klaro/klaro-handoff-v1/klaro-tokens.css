@@ -1,0 +1,75 @@
+/* ============================================================
+   Klaro — Design Tokens v1.0
+   Drop-in CSS custom properties. Import once at the root:
+   <link rel="stylesheet" href="klaro-tokens.css">  or  @import "klaro-tokens.css";
+   ============================================================ */
+:root {
+  /* ---- Surfaces (dark-first, 4 levels) ---- */
+  --klaro-ink:        #0A0A12;  /* app background */
+  --klaro-tile:       #0C0B14;  /* icon / splash tile */
+  --klaro-surface:    #14141F;  /* cards */
+  --klaro-raised:     #1C1C2B;  /* elevated cards, chips */
+  --klaro-overlay:    #26263A;  /* sheets, menus */
+  --klaro-line:       #23233A;  /* hairline borders */
+
+  /* ---- Brand ---- */
+  --klaro-violet:     #7C5CFF;  /* primary accent */
+  --klaro-violet-lt:  #8B7CFF;  /* accent on dark (text/icons) */
+  --klaro-blue:       #4B7BFF;  /* secondary accent */
+  --klaro-blue-lt:    #6FA8FF;  /* secondary on dark */
+  --klaro-highlight:  #B7AAFF;  /* light violet highlight */
+
+  /* ---- Semantic ---- */
+  --klaro-positive:   #34D399;  /* income / under budget */
+  --klaro-alert:      #FF8A5D;  /* over budget / warning */
+  --klaro-danger:     #FF6B6B;  /* destructive */
+
+  /* ---- Text ---- */
+  --klaro-text:       #ECEAF7;  /* primary */
+  --klaro-text-muted: #8D8AA8;  /* secondary */
+  --klaro-text-faint: #5B5B73;  /* tertiary / disabled */
+
+  /* ---- Gradient (brand signature) ---- */
+  --klaro-gradient:        linear-gradient(132deg, #7C5CFF 0%, #4B7BFF 100%);
+  --klaro-gradient-rich:   linear-gradient(132deg, #C2B6FF 0%, #7C66FF 52%, #3F6BFF 100%);
+  --klaro-gradient-fold:   linear-gradient(135deg, #3C429A 0%, #171B4A 100%);
+  --klaro-glow:            radial-gradient(60% 60% at 50% 36%, rgba(53,44,143,.9) 0%, transparent 100%);
+
+  /* ---- Typography ---- */
+  --klaro-font-display: 'Poppins', system-ui, sans-serif; /* wordmark + headings */
+  --klaro-font-sans:    'Inter', system-ui, sans-serif;   /* UI + body */
+  --klaro-font-mono:    'JetBrains Mono', ui-monospace, monospace; /* figures */
+  --klaro-fs-display:   46px;  --klaro-fw-display: 600; --klaro-ls-display: -0.03em;
+  --klaro-fs-h1:        28px;  --klaro-fw-h1: 600;
+  --klaro-fs-h2:        22px;  --klaro-fw-h2: 600;
+  --klaro-fs-body:      16px;  --klaro-fw-body: 400; --klaro-lh-body: 1.6;
+  --klaro-fs-caption:   13px;  --klaro-fw-caption: 400;
+
+  /* ---- Radius ---- */
+  --klaro-radius-sm:  8px;
+  --klaro-radius-md:  14px;
+  --klaro-radius-lg:  18px;
+  --klaro-radius-xl:  22px;
+  --klaro-radius-pill: 30px;
+  --klaro-radius-icon: 22.4%;   /* squircle approximation for the app icon tile */
+
+  /* ---- Spacing (4pt base) ---- */
+  --klaro-space-1: 4px;  --klaro-space-2: 8px;  --klaro-space-3: 12px;
+  --klaro-space-4: 16px; --klaro-space-5: 20px; --klaro-space-6: 24px; --klaro-space-8: 32px;
+
+  /* ---- Elevation / glow (no hard shadows on dark) ---- */
+  --klaro-elev-1: 0 0 0 1px rgba(255,255,255,.05);                 /* hairline top-light */
+  --klaro-elev-2: 0 8px 24px rgba(0,0,0,.45);                      /* sheets / modals */
+  --klaro-glow-accent: 0 0 22px rgba(124,92,255,.45);             /* primary buttons / FAB */
+  --klaro-glow-icon:   0 8px 14px rgba(3,3,15,.55);               /* icon lift */
+
+  /* ---- Motion ---- */
+  --klaro-ease:      cubic-bezier(.2,.8,.25,1);
+  --klaro-dur-fast:  150ms;
+  --klaro-dur-base:  300ms;
+  --klaro-dur-slow:  500ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --klaro-dur-fast: 1ms; --klaro-dur-base: 1ms; --klaro-dur-slow: 1ms; }
+}

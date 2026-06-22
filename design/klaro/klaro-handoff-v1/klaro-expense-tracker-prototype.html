@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Klaro — Expense Tracker (Prototype)</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230C0B14'/><g fill='none' stroke='%237C5CFF' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'><path d='M24 14V50'/><path d='M24 32L47 16'/><path d='M24 32L47 50'/></g></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.7.0/dist/tabler-icons.min.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  :root{
+    --bg:#0A0A12;--surface:#14141F;--raised:#1C1C2B;--overlay:#26263A;--line:#23233a;
+    --violet:#8B7CFF;--violet2:#7C5CFF;--blue:#6FA8FF;--blue2:#4B7BFF;
+    --text:#ECEAF7;--muted:#8D8AA8;--faint:#5b5b73;--green:#34D399;--pink:#FF6BB5;--teal:#2DD4BF;--amber:#FBBF24;
+    --mono:'JetBrains Mono',monospace;
+  }
+  body{font-family:'Inter',system-ui,sans-serif;color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(900px 500px at 20% -10%, #1b1746 0%, transparent 60%),radial-gradient(800px 500px at 100% 10%, #0e2150 0%, transparent 55%),#06060c;padding:24px;-webkit-font-smoothing:antialiased}
+  .stage{display:flex;gap:34px;align-items:center;flex-wrap:wrap;justify-content:center}
+  .pitch{max-width:300px}
+  .pitch .logo{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .pitch h1{font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.15;margin-bottom:12px}
+  .pitch p{color:var(--muted);font-size:15px;line-height:1.6}
+  .pitch .hint{margin-top:18px;font-size:13px;color:var(--faint);display:flex;align-items:center;gap:7px}
+  .device{width:380px;height:760px;max-height:94vh;background:#000;border-radius:46px;padding:11px;position:relative;
+    box-shadow:0 40px 90px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.05)}
+  .app{position:relative;width:100%;height:100%;background:var(--bg);border-radius:36px;overflow:hidden;display:flex;flex-direction:column}
+  .notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:120px;height:26px;background:#000;border-radius:0 0 16px 16px;z-index:40}
+  .statusbar{display:flex;justify-content:space-between;align-items:center;padding:12px 22px 4px;font-size:12px;font-weight:500;color:var(--text);z-index:30}
+  .statusbar .ic{display:flex;gap:6px;font-size:14px}
+  .screens{flex:1;overflow-y:auto;overflow-x:hidden;position:relative}
+  .screens::-webkit-scrollbar{width:0}
+  .screen{display:none;padding:6px 18px 96px;animation:fade .25s ease}
+  .screen.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  /* splash */
+  #screen-splash{padding:0;min-height:100%;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;position:relative;height:100%}
+  #screen-splash.active{display:flex}
+  .ksplash{filter:drop-shadow(0 14px 22px rgba(3,3,15,.6));animation:kin .55s cubic-bezier(.2,.8,.25,1) both}
+  .wmsplash{font-family:'Inter';font-weight:600;font-size:30px;letter-spacing:-.03em;color:#F2F0FB;margin-top:20px;animation:wmup .4s ease-out .28s both}
+  .tagsplash{font-size:13px;color:var(--lviolet,#B7AAFF);margin-top:6px;animation:wmup .4s ease-out .42s both}
+  @keyframes kin{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:scale(1)}}
+  @keyframes wmup{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  h2.title{font-size:22px;font-weight:600;letter-spacing:-.02em}
+  .row{display:flex;align-items:center;justify-content:space-between}
+  .muted{color:var(--muted)}.faint{color:var(--faint)}
+  .card{background:var(--surface);border-top:1px solid rgba(255,255,255,.05);border-radius:18px;padding:15px}
+  .glass{background:rgba(255,255,255,0.06);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.14);border-radius:22px;padding:18px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:7px 13px;border-radius:30px;background:var(--raised);color:var(--muted);border:none;cursor:pointer;font-family:inherit}
+  .pill.on{background:rgba(139,124,255,.16);color:var(--violet);box-shadow:inset 0 0 0 1px rgba(139,124,255,.5)}
+  .bar{height:7px;background:#0A0A12;border-radius:5px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,var(--violet2),var(--blue2));border-radius:5px}
+  .tile{width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto}
+  .tx{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .tx:last-child{border:none}
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:none;border-radius:15px;padding:15px;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;
+    background:linear-gradient(90deg,var(--violet2),var(--blue2));color:#fff;box-shadow:0 0 22px rgba(124,92,255,.45)}
+  .btn.ghost{background:var(--raised);color:var(--text);box-shadow:none}
+  .kpi{background:var(--surface);border-radius:14px;padding:12px}
+  .kpi .l{font-size:11px;color:var(--muted)}.kpi .v{font-size:18px;font-weight:600;margin-top:3px}
+  .ambient{position:absolute;inset:0 0 auto 0;height:280px;overflow:hidden;pointer-events:none;z-index:0}
+  .orb{position:absolute;border-radius:50%;filter:blur(46px)}
+  .tabbar{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-around;align-items:center;padding:12px 20px 22px;
+    background:linear-gradient(180deg,rgba(10,10,18,0) 0%,rgba(10,10,18,.92) 38%);z-index:30}
+  .tab{background:none;border:none;color:var(--faint);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:6px}
+  .tab.on{color:var(--violet)}
+  .fab{width:54px;height:54px;border-radius:18px;background:linear-gradient(135deg,var(--violet2),var(--blue2));display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:26px;box-shadow:0 0 24px rgba(124,92,255,.6);cursor:pointer;margin-top:-22px}
+  .scrim{position:absolute;inset:0;background:rgba(4,4,10,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .25s;z-index:50}
+  .scrim.open{opacity:1;pointer-events:auto}
+  .sheet{position:absolute;left:0;right:0;bottom:0;transform:translateY(102%);transition:transform .32s cubic-bezier(.2,.9,.3,1);z-index:60;
+    background:rgba(28,28,43,.86);-webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);border-top:1px solid rgba(255,255,255,.14);
+    border-radius:28px 28px 36px 36px;padding:12px 20px 26px}
+  .sheet.open{transform:translateY(0)}
+  .grab{width:40px;height:4px;border-radius:3px;background:rgba(255,255,255,.25);margin:4px auto 14px}
+  .amount{font-size:46px;font-weight:600;letter-spacing:-.03em;text-align:center;margin:6px 0 4px}
+  .seg{display:flex;background:var(--raised);border-radius:12px;padding:4px;margin:0 auto 16px;width:200px}
+  .seg button{flex:1;border:none;background:none;color:var(--muted);font-family:inherit;font-size:13px;padding:8px;border-radius:9px;cursor:pointer}
+  .seg button.on{background:var(--overlay);color:var(--text)}
+  .cats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:16px}
+  .catbtn{background:var(--raised);border:1px solid transparent;border-radius:14px;padding:11px 4px;text-align:center;font-size:10px;color:var(--muted);cursor:pointer}
+  .catbtn i{font-size:18px;display:block;margin-bottom:5px}
+  .catbtn.on{border-color:var(--violet);color:var(--text);background:rgba(139,124,255,.12)}
+  .keys{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:16px}
+  .key{background:none;border:none;color:var(--text);font-family:inherit;font-size:23px;font-weight:500;padding:12px;border-radius:12px;cursor:pointer}
+  .key:active{background:var(--raised)}
+  .creditcard{border-radius:20px;padding:20px;height:190px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;
+    background:linear-gradient(135deg,#3a2d7a 0%,#5b4bd6 45%,#3461c9 100%)}
+  .creditcard .sheen{position:absolute;width:240px;height:240px;border-radius:50%;background:rgba(255,255,255,.12);filter:blur(30px);top:-80px;right:-60px}
+  .listitem{display:flex;align-items:center;gap:13px;padding:14px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .toggle{margin-left:auto;width:42px;height:25px;border-radius:20px;background:var(--raised);position:relative;flex:0 0 auto}
+  .toggle.on{background:var(--violet)}
+  .toggle i{position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:#fff;transition:left .2s}
+  .toggle.on i{left:20px}
+  @media(max-width:430px){
+    body{padding:0}
+    .pitch{display:none}
+    .device{width:100vw;height:100vh;max-height:none;border-radius:0;padding:0}
+    .app{border-radius:0}
+    .notch{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="pitch">
+    <div class="logo">
+      <svg width="40" height="40" viewBox="0 0 64 64"><defs><linearGradient id="pk" gradientUnits="userSpaceOnUse" x1="16" y1="13" x2="50" y2="52"><stop offset="0" stop-color="#C2B6FF"/><stop offset="0.5" stop-color="#7C66FF"/><stop offset="1" stop-color="#3F6BFF"/></linearGradient></defs><g fill="none" stroke="#26306E" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" transform="translate(1,1.3)"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g><g fill="none" stroke="url(#pk)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g></svg>
+      <span style="font-size:22px;font-weight:600;">klaro</span>
+    </div>
+    <h1>Tap through the real thing.</h1>
+    <p>This is a live, clickable prototype of Klaro — not a picture. Use the bottom tabs, hit the <b style="color:var(--violet);font-weight:600">+</b> to log an expense, and watch your totals update.</p>
+    <div class="hint"><i class="ti ti-arrow-right"></i>Try it on the phone →</div>
+  </div>
+
+  <div class="device">
+    <div class="notch"></div>
+    <div class="app">
+      <div class="statusbar"><span>9:41</span><span class="ic"><i class="ti ti-antenna-bars-5"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i></span></div>
+      <div class="screens" id="screens">
+
+        <!-- SPLASH -->
+        <section class="screen active" id="screen-splash">
+          <div class="orb" style="width:170px;height:170px;background:#6E5BFF;opacity:.5;position:absolute;top:32%;left:50%;transform:translate(-50%,-50%)"></div>
+          <div class="ksplash">
+            <svg width="116" height="116" viewBox="0 0 120 120">
+              <defs>
+                <linearGradient id="sf" gradientUnits="userSpaceOnUse" x1="40" y1="28" x2="86" y2="96"><stop offset="0" stop-color="#C2B6FF"/><stop offset="0.52" stop-color="#7C66FF"/><stop offset="1" stop-color="#3F6BFF"/></linearGradient>
+                <linearGradient id="ss" gradientUnits="userSpaceOnUse" x1="46" y1="36" x2="86" y2="100"><stop offset="0" stop-color="#3C429A"/><stop offset="1" stop-color="#171B4A"/></linearGradient>
+                <radialGradient id="sgl" cx="50%" cy="36%" r="60%"><stop offset="0" stop-color="#352c8f" stop-opacity="0.9"/><stop offset="1" stop-color="#0C0B14" stop-opacity="0"/></radialGradient>
+              </defs>
+              <rect width="120" height="120" rx="28" fill="#0C0B14"/><rect width="120" height="120" rx="28" fill="url(#sgl)"/>
+              <g transform="translate(60,60) scale(1.8) translate(-32,-32)">
+                <g fill="none" stroke="url(#ss)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" transform="translate(1.15,1.5)"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g>
+                <g fill="none" stroke="url(#sf)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g>
+                <g fill="none" stroke="#E6E1FF" stroke-width="2.1" stroke-linecap="round" opacity="0.6"><path d="M19.6 18V46"/><path d="M23.2 30.2L43 16.8"/></g>
+              </g>
+            </svg>
+          </div>
+          <div class="wmsplash">klaro</div>
+          <div class="tagsplash">See every cent.</div>
+        </section>
+
+        <!-- ONBOARDING -->
+        <section class="screen" id="screen-onboarding" style="padding-top:40px;text-align:center;min-height:560px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div style="position:relative;margin-bottom:30px">
+            <div class="orb" style="width:150px;height:150px;background:#7C5CFF;opacity:.55;top:-30px;left:-40px"></div>
+            <div class="orb" style="width:130px;height:130px;background:#4B7BFF;opacity:.5;bottom:-20px;right:-40px"></div>
+            <svg width="92" height="92" viewBox="0 0 64 64" style="position:relative"><defs><linearGradient id="ok" gradientUnits="userSpaceOnUse" x1="16" y1="13" x2="50" y2="52"><stop offset="0" stop-color="#C2B6FF"/><stop offset="0.5" stop-color="#7C66FF"/><stop offset="1" stop-color="#3F6BFF"/></linearGradient></defs><g fill="none" stroke="#26306E" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" transform="translate(1,1.3)"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g><g fill="none" stroke="url(#ok)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g></svg>
+          </div>
+          <div style="font-size:32px;font-weight:600;letter-spacing:-.02em;margin-bottom:10px">See every cent.</div>
+          <p class="muted" style="font-size:15px;max-width:250px;margin-bottom:34px;line-height:1.6">Track spending, set budgets, and watch where your money really goes — beautifully.</p>
+          <button class="btn" data-go="home" style="max-width:240px">Get started <i class="ti ti-arrow-right"></i></button>
+          <button class="pill" data-go="home" style="margin-top:14px;background:none">I already have an account</button>
+        </section>
+
+        <!-- HOME -->
+        <section class="screen" id="screen-home">
+          <div class="ambient"><div class="orb" style="width:200px;height:200px;background:#6E5BFF;opacity:.45;top:-70px;left:-50px"></div><div class="orb" style="width:180px;height:180px;background:#3B82F6;opacity:.4;top:-50px;right:-60px"></div></div>
+          <div style="position:relative;z-index:2">
+            <div class="row" style="margin:6px 0 16px">
+              <div><div class="muted" style="font-size:12px">Good evening</div><div style="font-weight:600;font-size:17px">Prem</div></div>
+              <div data-go="settings" style="width:38px;height:38px;border-radius:50%;background:var(--raised);display:flex;align-items:center;justify-content:center;font-weight:600;color:var(--violet);cursor:pointer">P</div>
+            </div>
+            <div class="glass" style="margin-bottom:14px">
+              <div class="muted" style="font-size:12px">Total balance</div>
+              <div style="font-size:34px;font-weight:600;letter-spacing:-.02em;margin:4px 0 10px">$3,248.90</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <span style="background:rgba(52,211,153,.16);color:var(--green);font-size:12px;padding:3px 9px;border-radius:8px;text-shadow:0 0 10px rgba(52,211,153,.4)">+12% this month</span>
+                <span class="muted" style="font-size:12px">June</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-bottom:14px">
+              <div class="card" style="flex:1"><i class="ti ti-arrow-down-left" style="color:var(--green);font-size:17px"></i><div class="muted" style="font-size:11px;margin-top:4px">Income</div><div style="font-weight:600">$4,530</div></div>
+              <div class="card" style="flex:1"><i class="ti ti-arrow-up-right" style="color:var(--violet);font-size:17px"></i><div class="muted" style="font-size:11px;margin-top:4px">Spent</div><div style="font-weight:600" id="spentChip">$1,284</div></div>
+            </div>
+            <div class="card" style="margin-bottom:18px">
+              <div class="row" style="margin-bottom:9px"><span style="font-weight:500;font-size:13px">June budget</span><span class="muted" style="font-size:12px" id="budgetLeft">$715 left</span></div>
+              <div class="bar"><i id="budgetBar" style="width:64%"></i></div>
+              <div class="muted" style="font-size:11px;margin-top:7px"><span id="budgetPct">64%</span> of $2,000</div>
+            </div>
+            <div class="row" style="margin-bottom:6px"><span style="font-weight:600">Recent</span><span class="muted" style="font-size:12px;cursor:pointer" data-go="transactions">See all</span></div>
+            <div id="recentList"></div>
+          </div>
+        </section>
+
+        <!-- INSIGHTS -->
+        <section class="screen" id="screen-insights">
+          <div class="row" style="margin:6px 0 18px"><h2 class="title">Insights</h2><button class="pill on">June <i class="ti ti-chevron-down"></i></button></div>
+          <div style="display:flex;justify-content:center;margin-bottom:18px">
+            <svg width="178" height="178" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="46" fill="none" stroke="#8B7CFF" stroke-width="15" stroke-dasharray="92.5 196.5" transform="rotate(-90 60 60)"/>
+              <circle cx="60" cy="60" r="46" fill="none" stroke="#6FA8FF" stroke-width="15" stroke-dasharray="69.4 219.6" transform="rotate(25.2 60 60)"/>
+              <circle cx="60" cy="60" r="46" fill="none" stroke="#2DD4BF" stroke-width="15" stroke-dasharray="52 237" transform="rotate(111.6 60 60)"/>
+              <circle cx="60" cy="60" r="46" fill="none" stroke="#FF6BB5" stroke-width="15" stroke-dasharray="46.2 242.8" transform="rotate(176.4 60 60)"/>
+              <circle cx="60" cy="60" r="46" fill="none" stroke="#39394f" stroke-width="15" stroke-dasharray="28.9 260.1" transform="rotate(234 60 60)"/>
+              <text x="60" y="56" text-anchor="middle" fill="#ECEAF7" style="font:600 20px Inter">$1,284</text>
+              <text x="60" y="73" text-anchor="middle" fill="#8D8AA8" style="font:400 10px Inter">this month</text>
+            </svg>
+          </div>
+          <div class="card">
+            <div class="tx" style="border-bottom:1px solid var(--line)"><span class="tile" style="background:rgba(139,124,255,.15);color:#8B7CFF"><i class="ti ti-coffee"></i></span><div style="flex:1"><div style="font-size:13px">Food &amp; dining</div><div class="muted" style="font-size:11px">32%</div></div><span style="font-weight:600;font-size:13px">$411</span></div>
+            <div class="tx" style="border-bottom:1px solid var(--line)"><span class="tile" style="background:rgba(111,168,255,.15);color:#6FA8FF"><i class="ti ti-shopping-bag"></i></span><div style="flex:1"><div style="font-size:13px">Shopping</div><div class="muted" style="font-size:11px">24%</div></div><span style="font-weight:600;font-size:13px">$308</span></div>
+            <div class="tx" style="border-bottom:1px solid var(--line)"><span class="tile" style="background:rgba(45,212,191,.15);color:#2DD4BF"><i class="ti ti-car"></i></span><div style="flex:1"><div style="font-size:13px">Transport</div><div class="muted" style="font-size:11px">18%</div></div><span style="font-weight:600;font-size:13px">$231</span></div>
+            <div class="tx" style="border-bottom:1px solid var(--line)"><span class="tile" style="background:rgba(255,107,181,.15);color:#FF6BB5"><i class="ti ti-bolt"></i></span><div style="flex:1"><div style="font-size:13px">Bills</div><div class="muted" style="font-size:11px">16%</div></div><span style="font-weight:600;font-size:13px">$205</span></div>
+            <div class="tx"><span class="tile" style="background:rgba(120,120,150,.18);color:#9a9ab5"><i class="ti ti-dots"></i></span><div style="flex:1"><div style="font-size:13px">Other</div><div class="muted" style="font-size:11px">10%</div></div><span style="font-weight:600;font-size:13px">$129</span></div>
+          </div>
+        </section>
+
+        <!-- TRANSACTIONS -->
+        <section class="screen" id="screen-transactions">
+          <div class="row" style="margin:6px 0 14px"><h2 class="title">Transactions</h2><i class="ti ti-search" style="font-size:20px;color:var(--muted)"></i></div>
+          <div style="display:flex;gap:8px;margin-bottom:14px" id="filters">
+            <button class="pill on" data-filter="all">All</button>
+            <button class="pill" data-filter="expense">Expenses</button>
+            <button class="pill" data-filter="income">Income</button>
+          </div>
+          <div id="txList"></div>
+        </section>
+
+        <!-- CARDS -->
+        <section class="screen" id="screen-cards">
+          <h2 class="title" style="margin:6px 0 16px">Your card</h2>
+          <div class="creditcard" style="margin-bottom:18px">
+            <div class="sheen"></div>
+            <div class="row" style="position:relative"><span style="font-weight:600;letter-spacing:.04em">klaro</span><i class="ti ti-wifi" style="transform:rotate(90deg);font-size:20px"></i></div>
+            <div style="position:relative">
+              <div style="font-family:var(--mono);font-size:17px;letter-spacing:2px;margin-bottom:12px">5412  ••••  ••••  2026</div>
+              <div class="row" style="font-size:12px;opacity:.85"><span>PREM MARADIYA</span><span>06/29</span></div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;margin-bottom:16px">
+            <div class="kpi" style="flex:1"><div class="l">Available</div><div class="v">$3,248.90</div></div>
+            <div class="kpi" style="flex:1"><div class="l">Spent (June)</div><div class="v" id="spentCard">$1,284</div></div>
+          </div>
+          <div class="card" style="margin-bottom:10px"><div class="row"><span style="display:flex;align-items:center;gap:12px"><span class="tile" style="background:var(--raised);color:var(--violet)"><i class="ti ti-snowflake"></i></span>Freeze card</span><div class="toggle"><i></i></div></div></div>
+          <div class="card"><div class="row"><span style="display:flex;align-items:center;gap:12px"><span class="tile" style="background:var(--raised);color:var(--blue)"><i class="ti ti-bell"></i></span>Spend alerts</span><div class="toggle on"><i></i></div></div></div>
+        </section>
+
+        <!-- BUDGETS -->
+        <section class="screen" id="screen-budgets">
+          <div class="row" style="margin:6px 0 16px"><h2 class="title">Budgets</h2><i class="ti ti-plus" style="font-size:20px;color:var(--violet)"></i></div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="row" style="margin-bottom:9px"><span style="display:flex;align-items:center;gap:9px"><span class="tile" style="width:30px;height:30px;background:rgba(139,124,255,.15);color:#8B7CFF"><i class="ti ti-coffee"></i></span>Food</span><span class="muted" style="font-size:12px">$411 / $500</span></div>
+            <div class="bar"><i style="width:82%"></i></div>
+          </div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="row" style="margin-bottom:9px"><span style="display:flex;align-items:center;gap:9px"><span class="tile" style="width:30px;height:30px;background:rgba(111,168,255,.15);color:#6FA8FF"><i class="ti ti-shopping-bag"></i></span>Shopping</span><span class="muted" style="font-size:12px">$308 / $400</span></div>
+            <div class="bar"><i style="width:77%"></i></div>
+          </div>
+          <div class="card" style="margin-bottom:12px">
+            <div class="row" style="margin-bottom:9px"><span style="display:flex;align-items:center;gap:9px"><span class="tile" style="width:30px;height:30px;background:rgba(45,212,191,.15);color:#2DD4BF"><i class="ti ti-car"></i></span>Transport</span><span class="muted" style="font-size:12px">$231 / $300</span></div>
+            <div class="bar"><i style="width:77%"></i></div>
+          </div>
+          <div class="card">
+            <div class="row" style="margin-bottom:9px"><span style="display:flex;align-items:center;gap:9px"><span class="tile" style="width:30px;height:30px;background:rgba(255,107,181,.15);color:#FF6BB5"><i class="ti ti-bolt"></i></span>Bills</span><span class="muted" style="font-size:12px">$205 / $350</span></div>
+            <div class="bar"><i style="width:59%"></i></div>
+          </div>
+        </section>
+
+        <!-- SETTINGS -->
+        <section class="screen" id="screen-settings">
+          <h2 class="title" style="margin:6px 0 16px">Profile</h2>
+          <div class="card" style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+            <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--violet2),var(--blue2));display:flex;align-items:center;justify-content:center;font-weight:600;font-size:20px;color:#fff">P</div>
+            <div><div style="font-weight:600;font-size:16px">Prem Maradiya</div><div class="muted" style="font-size:12px">premmaradiya333@gmail.com</div></div>
+          </div>
+          <div class="card">
+            <div class="listitem"><span class="tile" style="width:30px;height:30px;background:var(--raised);color:var(--violet)"><i class="ti ti-user"></i></span>Account<i class="ti ti-chevron-right muted" style="margin-left:auto"></i></div>
+            <div class="listitem"><span class="tile" style="width:30px;height:30px;background:var(--raised);color:var(--blue)"><i class="ti ti-bell"></i></span>Notifications<i class="ti ti-chevron-right muted" style="margin-left:auto"></i></div>
+            <div class="listitem"><span class="tile" style="width:30px;height:30px;background:var(--raised);color:var(--teal)"><i class="ti ti-lock"></i></span>Security<i class="ti ti-chevron-right muted" style="margin-left:auto"></i></div>
+            <div class="listitem"><span class="tile" style="width:30px;height:30px;background:var(--raised);color:var(--amber)"><i class="ti ti-moon"></i></span>Dark theme<div class="toggle on"><i></i></div></div>
+            <div class="listitem" style="border:none" data-go="onboarding"><span class="tile" style="width:30px;height:30px;background:var(--raised);color:var(--pink)"><i class="ti ti-logout"></i></span>Log out</div>
+          </div>
+        </section>
+
+      </div>
+
+      <nav class="tabbar" id="tabbar">
+        <button class="tab on" data-go="home"><i class="ti ti-home"></i></button>
+        <button class="tab" data-go="insights"><i class="ti ti-chart-pie"></i></button>
+        <button class="fab" id="openAdd"><i class="ti ti-plus"></i></button>
+        <button class="tab" data-go="cards"><i class="ti ti-credit-card"></i></button>
+        <button class="tab" data-go="settings"><i class="ti ti-user"></i></button>
+      </nav>
+
+      <div class="scrim" id="scrim"></div>
+      <div class="sheet" id="sheet">
+        <div class="grab"></div>
+        <div class="row" style="margin-bottom:6px"><span style="font-weight:600;font-size:16px">Add expense</span><i class="ti ti-x" id="closeAdd" style="font-size:20px;color:var(--muted);cursor:pointer"></i></div>
+        <div class="amount" id="amt">$0</div>
+        <div class="seg" id="typeSeg"><button class="on" data-type="expense">Expense</button><button data-type="income">Income</button></div>
+        <div class="cats" id="cats">
+          <button class="catbtn on" data-cat="Food"><i class="ti ti-coffee"></i>Food</button>
+          <button class="catbtn" data-cat="Transport"><i class="ti ti-car"></i>Transit</button>
+          <button class="catbtn" data-cat="Shopping"><i class="ti ti-shopping-bag"></i>Shop</button>
+          <button class="catbtn" data-cat="Bills"><i class="ti ti-bolt"></i>Bills</button>
+          <button class="catbtn" data-cat="Health"><i class="ti ti-heart"></i>Health</button>
+          <button class="catbtn" data-cat="Fun"><i class="ti ti-device-gamepad-2"></i>Fun</button>
+          <button class="catbtn" data-cat="Income"><i class="ti ti-cash"></i>Income</button>
+          <button class="catbtn" data-cat="Other"><i class="ti ti-dots"></i>Other</button>
+        </div>
+        <div class="keys" id="keys">
+          <button class="key">1</button><button class="key">2</button><button class="key">3</button>
+          <button class="key">4</button><button class="key">5</button><button class="key">6</button>
+          <button class="key">7</button><button class="key">8</button><button class="key">9</button>
+          <button class="key">.</button><button class="key">0</button><button class="key" data-act="del"><i class="ti ti-backspace"></i></button>
+        </div>
+        <button class="btn" id="saveExp">Save expense</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  const CAT = {
+    Food:{i:'ti-coffee',c:'#8B7CFF'}, Transport:{i:'ti-car',c:'#2DD4BF'}, Shopping:{i:'ti-shopping-bag',c:'#6FA8FF'},
+    Bills:{i:'ti-bolt',c:'#FF6BB5'}, Health:{i:'ti-heart',c:'#FB7185'}, Fun:{i:'ti-device-gamepad-2',c:'#FBBF24'},
+    Income:{i:'ti-cash',c:'#34D399'}, Other:{i:'ti-dots',c:'#9a9ab5'}
+  };
+  let txs = [
+    {name:'Whole Foods', cat:'Food', amount:-64.20, when:'Today'},
+    {name:'Uber', cat:'Transport', amount:-18.40, when:'Today'},
+    {name:'Spotify', cat:'Fun', amount:-9.99, when:'Yesterday'},
+    {name:'Zara', cat:'Shopping', amount:-82.00, when:'Jun 6'},
+    {name:'Salary', cat:'Income', amount:4530.00, when:'Jun 1'},
+    {name:'Electric bill', cat:'Bills', amount:-74.30, when:'Jun 1'},
+  ];
+  let spent = 1284.50, budget = 2000, filter = 'all';
+  const money = n => (n<0?'-':'') + '$' + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  function rowHTML(t){
+    const c = CAT[t.cat] || CAT.Other;
+    const pos = t.amount > 0;
+    return `<div class="tx"><span class="tile" style="background:${c.c}22;color:${c.c}"><i class="ti ${c.i}"></i></span>
+      <div style="flex:1;min-width:0"><div style="font-size:14px">${t.name}</div><div class="muted" style="font-size:11px">${t.cat} · ${t.when||''}</div></div>
+      <div style="font-weight:600;font-size:13px;color:${pos?'var(--green)':'var(--text)'}">${pos?'+':''}${money(t.amount)}</div></div>`;
+  }
+  function renderRecent(){ document.getElementById('recentList').innerHTML = txs.slice(0,4).map(rowHTML).join(''); }
+  function renderTx(){
+    const list = txs.filter(t => filter==='all' ? true : filter==='income' ? t.amount>0 : t.amount<0);
+    document.getElementById('txList').innerHTML = list.map(rowHTML).join('') || '<div class="muted" style="text-align:center;padding:30px">Nothing here yet.</div>';
+  }
+  function updateSpent(){
+    const left = Math.max(budget - spent, 0), pct = Math.min(Math.round(spent/budget*100),100);
+    document.getElementById('spentChip').textContent = '$' + Math.round(spent).toLocaleString();
+    document.getElementById('spentCard').textContent = '$' + Math.round(spent).toLocaleString();
+    document.getElementById('budgetLeft').textContent = money(left).replace('.00','') + ' left';
+    document.getElementById('budgetBar').style.width = pct + '%';
+    document.getElementById('budgetPct').textContent = pct + '%';
+  }
+
+  function showScreen(name){
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === 'screen-'+name));
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.go === name));
+    document.getElementById('tabbar').style.display = (name==='onboarding'||name==='splash') ? 'none' : 'flex';
+    document.getElementById('screens').scrollTop = 0;
+  }
+  document.querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', () => showScreen(el.dataset.go)));
+
+  // splash -> onboarding
+  document.getElementById('tabbar').style.display = 'none';
+  setTimeout(() => showScreen('onboarding'), 1800);
+
+  const sheet = document.getElementById('sheet'), scrim = document.getElementById('scrim');
+  function openSheet(){ sheet.classList.add('open'); scrim.classList.add('open'); }
+  function closeSheet(){ sheet.classList.remove('open'); scrim.classList.remove('open'); }
+  document.getElementById('openAdd').addEventListener('click', openSheet);
+  document.getElementById('closeAdd').addEventListener('click', closeSheet);
+  scrim.addEventListener('click', closeSheet);
+
+  let amt = '0', type = 'expense', cat = 'Food';
+  const amtEl = document.getElementById('amt');
+  const drawAmt = () => amtEl.textContent = '$' + amt;
+  document.getElementById('keys').addEventListener('click', e => {
+    const k = e.target.closest('.key'); if(!k) return;
+    if(k.dataset.act === 'del'){ amt = amt.length>1 ? amt.slice(0,-1) : '0'; }
+    else { const v = k.textContent.trim();
+      if(v==='.'){ if(!amt.includes('.')) amt += '.'; }
+      else { amt = (amt==='0') ? v : amt + v; }
+    }
+    drawAmt();
+  });
+  document.getElementById('typeSeg').addEventListener('click', e => {
+    const b = e.target.closest('button'); if(!b) return;
+    type = b.dataset.type;
+    document.querySelectorAll('#typeSeg button').forEach(x => x.classList.toggle('on', x===b));
+  });
+  document.getElementById('cats').addEventListener('click', e => {
+    const b = e.target.closest('.catbtn'); if(!b) return;
+    cat = b.dataset.cat;
+    document.querySelectorAll('.catbtn').forEach(x => x.classList.toggle('on', x===b));
+  });
+  document.getElementById('saveExp').addEventListener('click', () => {
+    const val = parseFloat(amt) || 0; if(val <= 0){ closeSheet(); return; }
+    const signed = (type==='income') ? val : -val;
+    txs.unshift({ name: (type==='income'?'Income':cat), cat: (type==='income'?'Income':cat), amount: signed, when:'Just now' });
+    if(type==='expense') spent += val;
+    renderRecent(); renderTx(); updateSpent();
+    amt = '0'; drawAmt(); closeSheet(); showScreen('home');
+  });
+
+  document.getElementById('filters').addEventListener('click', e => {
+    const b = e.target.closest('.pill'); if(!b) return;
+    filter = b.dataset.filter;
+    document.querySelectorAll('#filters .pill').forEach(x => x.classList.toggle('on', x===b));
+    renderTx();
+  });
+
+  document.querySelectorAll('.toggle').forEach(t => t.addEventListener('click', () => t.classList.toggle('on')));
+
+  renderRecent(); renderTx(); updateSpent(); drawAmt();
+</script>
+</body>
+</html>

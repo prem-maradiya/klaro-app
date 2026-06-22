@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($pass = -join \\(\\(48..57\\)+\\(65..90\\)+\\(97..122\\) | Get-Random -Count 24 | ForEach-Object {[char]$_}\\); & \"C:\\\\Program Files\\\\Android\\\\Android Studio\\\\jbr\\\\bin\\\\keytool.exe\" -genkeypair -v -keystore \"C:\\\\Users\\\\premm\\\\OneDrive\\\\Desktop\\\\expense_tracker\\\\android\\\\klaro-release.jks\" -alias klaro -keyalg RSA -keysize 2048 -validity 10000 -storepass $pass -keypass $pass -dname \"CN=Prem Maradiya, OU=Klaro, O=Klaro, C=IN\"; Set-Content -Path \"C:\\\\Users\\\\premm\\\\OneDrive\\\\Desktop\\\\expense_tracker\\\\android\\\\key.properties\" -Encoding ascii -Value @\\(\"storePassword=$pass\", \"keyPassword=$pass\", \"keyAlias=klaro\", \"storeFile=../klaro-release.jks\"\\); \"key.properties written\")"
+    ]
+  }
+}

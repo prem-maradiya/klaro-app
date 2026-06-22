@@ -1,0 +1,641 @@
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../config/build_config.dart';
+import '../models/expense.dart';
+import '../providers/expense_provider.dart';
+import '../services/budget_service.dart';
+import '../theme/klaro.dart';
+import '../widgets/add_expense_sheet.dart';
+import '../widgets/category_donut.dart';
+import '../widgets/edit_expense_sheet.dart';
+import '../widgets/import_text_sheet.dart';
+import '../widgets/income_sheet.dart';
+import '../widgets/spending_chart.dart';
+import 'budgets_screen.dart';
+import 'label_screen.dart';
+import 'recurring_screen.dart';
+import 'settings_screen.dart';
+import 'trends_screen.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  bool _initialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _init());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Coming back to the app — reload to surface anything the background isolate
+    // captured while we were away.
+    if (state == AppLifecycleState.resumed && _initialized) {
+      context.read<ExpenseProvider>().reloadFromDisk();
+    }
+  }
+
+  Future<void> _init() async {
+    final provider = context.read<ExpenseProvider>();
+    await provider.initialize();
+    // Post-login: if this device has no local history yet (fresh install / new
+    // device), pull the account's transactions from the backend so they show
+    // immediately instead of waiting on an SMS re-scan.
+    await provider.hydrateFromBackend();
+    if (mounted) setState(() => _initialized = true);
+    _maybeRequestBackgroundPermission();
+  }
+
+  // Ask once to ignore battery optimization so SMS keep being caught in the
+  // background (Vivo kills background apps aggressively). Skipped on the no-SMS
+  // (Play) build, which has nothing running in the background to protect.
+  Future<void> _maybeRequestBackgroundPermission() async {
+    if (!kSmsEnabled) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('battery_opt_asked') == true) return;
+    await prefs.setBool('battery_opt_asked', true);
+    if (!await Permission.ignoreBatteryOptimizations.isGranted) {
+      await Permission.ignoreBatteryOptimizations.request();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Image.asset('assets/brand/klaro_mark.png', width: 26, height: 26),
+            const SizedBox(width: 10),
+            const Text('Klaro'),
+          ],
+        ),
+        actions: [
+          Consumer<ExpenseProvider>(
+            builder: (_, provider, __) {
+              final count = provider.unlabeled.length;
+              return count == 0
+                  ? const SizedBox.shrink()
+                  : Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.label_outline),
+                          tooltip: 'Label unknown merchants',
+                          onPressed: () => _openLabelScreen(context),
+                        ),
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(
+                              color: Klaro.danger,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              '$count',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 10),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.autorenew),
+            tooltip: 'Upcoming payments',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const RecurringScreen())),
+          ),
+          IconButton(
+            icon: const Icon(Icons.account_balance_wallet_outlined),
+            tooltip: 'Budgets',
+            onPressed: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const BudgetsScreen())),
+          ),
+          PopupMenuButton<String>(
+            onSelected: (v) async {
+              if (v == 'import') {
+                await _importInbox();
+              } else if (v == 'import_text') {
+                await ImportTextSheet.show(context);
+              } else if (v == 'recurring') {
+                if (!mounted) return;
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const RecurringScreen()));
+              } else if (v == 'trends') {
+                if (!mounted) return;
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const TrendsScreen()));
+              } else if (v == 'budgets') {
+                if (!mounted) return;
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const BudgetsScreen()));
+              } else if (v == 'settings') {
+                if (!mounted) return;
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const SettingsScreen()));
+              }
+            },
+            itemBuilder: (_) => [
+              // SMS inbox import only exists on builds with SMS access.
+              if (kSmsEnabled)
+                const PopupMenuItem(
+                    value: 'import', child: Text('Import from SMS inbox')),
+              const PopupMenuItem(
+                  value: 'import_text', child: Text('Import from text')),
+              const PopupMenuItem(
+                  value: 'recurring', child: Text('Upcoming payments')),
+              const PopupMenuItem(
+                  value: 'trends', child: Text('Spending trends')),
+              const PopupMenuItem(value: 'budgets', child: Text('Budgets')),
+              const PopupMenuItem(value: 'settings', child: Text('Settings')),
+            ],
+          ),
+        ],
+      ),
+      body: _initialized
+          ? const _Body()
+          : const Center(child: CircularProgressIndicator()),
+      floatingActionButton: FloatingActionButton(
+        tooltip: 'Add expense',
+        backgroundColor: Klaro.violet,
+        foregroundColor: Colors.white,
+        onPressed: () => AddExpenseSheet.show(context),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Future<void> _importInbox() async {
+    final provider = context.read<ExpenseProvider>();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Scanning SMS inbox…')),
+    );
+    await provider.importFromInbox();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Import complete')),
+      );
+    }
+  }
+
+  void _openLabelScreen(BuildContext context) {
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const LabelScreen()));
+  }
+}
+
+class _Body extends StatelessWidget {
+  const _Body();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ExpenseProvider>(
+      builder: (_, provider, __) {
+        if (provider.expenses.isEmpty) {
+          return const _EmptyState();
+        }
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(child: _SummaryCard(provider: provider)),
+            if (provider.totalThisMonth > 0)
+              SliverToBoxAdapter(
+                child: SpendingChartCard(
+                  daily: provider.dailySpendThisMonth,
+                  monthLabel: DateFormat('MMMM').format(DateTime.now()),
+                ),
+              ),
+            if (provider.categoryTotals.isNotEmpty)
+              SliverToBoxAdapter(
+                child: CategoryDonutCard(totals: provider.categoryTotals),
+              ),
+            if (provider.pendingSyncCount > 0)
+              SliverToBoxAdapter(
+                child: _SyncBanner(
+                  count: provider.pendingSyncCount,
+                  failed: provider.syncFailed,
+                  onRetry: provider.syncNow,
+                ),
+              ),
+            if (provider.unlabeled.isNotEmpty)
+              SliverToBoxAdapter(
+                  child: _UnlabeledBanner(count: provider.unlabeled.length)),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              sliver: SliverList.separated(
+                itemCount: provider.expenses.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (ctx, i) => _ExpenseTile(
+                  expense: provider.expenses[i],
+                  syncFailed: provider.syncFailed,
+                ),
+              ),
+            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 24)),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SummaryCard extends StatelessWidget {
+  const _SummaryCard({required this.provider});
+  final ExpenseProvider provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final month = DateFormat('MMMM yyyy').format(DateTime.now());
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Klaro.surface,
+        borderRadius: BorderRadius.circular(Klaro.radiusXl),
+        border: Border.all(color: Klaro.line),
+        boxShadow: [
+          // Soft brand glow instead of a hard shadow (dark-first elevation).
+          BoxShadow(
+            color: Klaro.violet.withValues(alpha: 0.12),
+            blurRadius: 28,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Spent in $month',
+            style: const TextStyle(color: Klaro.textMuted, fontSize: 13),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '₹${provider.totalThisMonth.toStringAsFixed(2)}',
+            style: Klaro.figures(size: 34, weight: FontWeight.w600),
+          ),
+          ListenableBuilder(
+            listenable: BudgetService.instance,
+            builder: (context, _) => _BudgetBar(
+              spent: provider.totalThisMonth,
+              limit: BudgetService.instance.overall,
+            ),
+          ),
+          // Net cash flow — only once some income (credits) has been captured.
+          // Tap to break the income down by source.
+          if (provider.incomeThisMonth > 0) ...[
+            const SizedBox(height: 6),
+            InkWell(
+              borderRadius: BorderRadius.circular(Klaro.radiusMd),
+              onTap: () => IncomeSheet.show(
+                context,
+                entries: provider.incomeThisMonthEntries,
+                monthLabel: DateFormat('MMMM').format(DateTime.now()),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.south_west, size: 13, color: Klaro.positive),
+                    const SizedBox(width: 4),
+                    Text(
+                      '₹${provider.incomeThisMonth.toStringAsFixed(0)} in',
+                      style: const TextStyle(
+                          color: Klaro.positive,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Net ${provider.netThisMonth >= 0 ? '+' : '−'}₹${provider.netThisMonth.abs().toStringAsFixed(0)}',
+                      style: TextStyle(
+                        color: provider.netThisMonth >= 0
+                            ? Klaro.positive
+                            : Klaro.textMuted,
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.chevron_right,
+                        size: 15, color: Klaro.textFaint),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Overall monthly-budget progress under the month total. Hidden until a
+/// budget is set (in ⋮ → Budgets). Violet while comfortable, alert at 80%,
+/// danger once exceeded — tap goes to the Budgets screen.
+class _BudgetBar extends StatelessWidget {
+  const _BudgetBar({required this.spent, this.limit});
+  final double spent;
+  final double? limit;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = limit;
+    if (l == null || l <= 0) return const SizedBox.shrink();
+
+    final pct = (spent / l).clamp(0.0, 1.0);
+    final over = spent >= l;
+    final near = !over && spent >= l * 0.8;
+    final color = over ? Klaro.danger : (near ? Klaro.alert : Klaro.violet);
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+          context, MaterialPageRoute(builder: (_) => const BudgetsScreen())),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: pct,
+                minHeight: 6,
+                backgroundColor: Klaro.line,
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              over
+                  ? 'Budget exceeded — ₹${(spent - l).toStringAsFixed(0)} over ₹${l.toStringAsFixed(0)}'
+                  : '${(pct * 100).round()}% of ₹${l.toStringAsFixed(0)} budget · ₹${(l - spent).toStringAsFixed(0)} left',
+              style: TextStyle(
+                fontSize: 11.5,
+                color: over ? Klaro.danger : Klaro.textMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Sync state strip: quiet while retrying in the background, alert-tinted with
+/// tap-to-retry once the backoff is exhausted (e.g. backend off / no network).
+class _SyncBanner extends StatelessWidget {
+  const _SyncBanner(
+      {required this.count, required this.failed, required this.onRetry});
+  final int count;
+  final bool failed;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = failed ? Klaro.alert : Klaro.textMuted;
+    return GestureDetector(
+      onTap: onRetry,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: failed
+              ? Klaro.alert.withValues(alpha: 0.10)
+              : Klaro.raised.withValues(alpha: 0.6),
+          border: Border.all(
+              color: failed
+                  ? Klaro.alert.withValues(alpha: 0.35)
+                  : Klaro.line),
+          borderRadius: BorderRadius.circular(Klaro.radiusMd),
+        ),
+        child: Row(
+          children: [
+            Icon(failed ? Icons.cloud_off : Icons.cloud_upload_outlined,
+                color: color, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                failed
+                    ? '$count change${count > 1 ? 's' : ''} not synced — tap to retry'
+                    : 'Syncing $count change${count > 1 ? 's' : ''}…',
+                style: TextStyle(
+                    color: color, fontSize: 13, fontWeight: FontWeight.w500),
+              ),
+            ),
+            if (failed) Icon(Icons.refresh, color: color, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UnlabeledBanner extends StatelessWidget {
+  const _UnlabeledBanner({required this.count});
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+          context, MaterialPageRoute(builder: (_) => const LabelScreen())),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Klaro.alert.withValues(alpha: 0.10),
+          border: Border.all(color: Klaro.alert.withValues(alpha: 0.35)),
+          borderRadius: BorderRadius.circular(Klaro.radiusMd),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.label_outline, color: Klaro.alert, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '$count expense${count > 1 ? 's' : ''} need labeling',
+                style: const TextStyle(
+                    color: Klaro.alert, fontWeight: FontWeight.w500),
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Klaro.alert),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ExpenseTile extends StatelessWidget {
+  const _ExpenseTile({required this.expense, this.syncFailed = false});
+  final Expense expense;
+
+  /// Whether the global sync engine has given up — switches the pending
+  /// indicator from "uploading" to "offline".
+  final bool syncFailed;
+
+  @override
+  Widget build(BuildContext context) {
+    final dateStr = DateFormat('d MMM, h:mm a').format(expense.date);
+    final isCard = expense.isCard;
+    final catColor = Klaro.categoryColor(expense.category);
+
+    // Card payments carry the brand violet; UPI rows take their category color
+    // (alert orange while unlabeled).
+    final Color accent = isCard
+        ? Klaro.violetLt
+        : (expense.needsLabel ? Klaro.alert : catColor);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isCard ? Klaro.raised : Klaro.surface,
+        borderRadius: BorderRadius.circular(Klaro.radiusLg),
+        border: isCard
+            ? const Border(
+                left: BorderSide(color: Klaro.violet, width: 3),
+                top: BorderSide(color: Klaro.line),
+                right: BorderSide(color: Klaro.line),
+                bottom: BorderSide(color: Klaro.line),
+              )
+            : Border.all(color: Klaro.line),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: CircleAvatar(
+          backgroundColor: accent.withValues(alpha: 0.16),
+          child: isCard
+              ? Icon(Icons.credit_card, size: 16, color: accent)
+              : Text(
+                  expense.needsLabel
+                      ? '?'
+                      : expense.merchant[0].toUpperCase(),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: accent),
+                ),
+        ),
+        title: Row(
+          children: [
+            Flexible(
+              child: Text(
+                expense.merchant,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600, color: Klaro.text),
+              ),
+            ),
+            if (isCard) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Klaro.violet.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(5),
+                  border:
+                      Border.all(color: Klaro.violet.withValues(alpha: 0.45)),
+                ),
+                child: const Text(
+                  'CARD',
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    color: Klaro.violetLt,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        subtitle: Text(
+          '${expense.category ?? (expense.needsLabel ? 'Needs label' : 'Other')} • $dateStr',
+          style: const TextStyle(fontSize: 12, color: Klaro.textMuted),
+        ),
+        trailing: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(
+              '${expense.isIncome ? '+' : ''}₹${expense.amount.toStringAsFixed(2)}',
+              style: Klaro.figures(size: 15, weight: FontWeight.w600)
+                  .copyWith(color: expense.isIncome ? Klaro.positive : null),
+            ),
+            if (!expense.isSynced) ...[
+              const SizedBox(height: 3),
+              Icon(
+                syncFailed ? Icons.cloud_off : Icons.cloud_upload_outlined,
+                size: 13,
+                color: syncFailed ? Klaro.alert : Klaro.textFaint,
+              ),
+            ],
+          ],
+        ),
+        onTap: () => EditExpenseSheet.show(context, expense),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.receipt_long_outlined,
+              size: 72, color: Klaro.textFaint),
+          const SizedBox(height: 16),
+          const Text('No expenses yet',
+              style: TextStyle(color: Klaro.textMuted, fontSize: 18)),
+          const SizedBox(height: 8),
+          Text(
+            kSmsEnabled
+                ? 'Expenses will appear automatically\nwhen UPI payments are received'
+                : 'Add a payment with the + button,\nor paste a bank message to import it',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Klaro.textFaint, fontSize: 13),
+          ),
+          const SizedBox(height: 24),
+          if (kSmsEnabled)
+            TextButton.icon(
+              onPressed: () => context.read<ExpenseProvider>().importFromInbox(),
+              icon: const Icon(Icons.inbox),
+              label: const Text('Import from SMS inbox'),
+            )
+          else
+            TextButton.icon(
+              onPressed: () => ImportTextSheet.show(context),
+              icon: const Icon(Icons.content_paste),
+              label: const Text('Import from text'),
+            ),
+        ],
+      ),
+    );
+  }
+}

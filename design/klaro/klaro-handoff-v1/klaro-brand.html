@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Klaro — Brand</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --ink:#0A0A12;--tile:#0C0B14;--surface:#14141F;--raised:#1C1C2B;--line:#23233a;
+    --violet:#7C5CFF;--blue:#4B7BFF;--lviolet:#B7AAFF;--mint:#34D399;--coral:#FF8A5D;
+    --text:#ECEAF7;--muted:#8D8AA8;--faint:#5b5b73;--mono:'JetBrains Mono',monospace;
+  }
+  body{background:var(--ink);color:var(--text);font-family:'Inter',system-ui,sans-serif;line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 28px}
+  section{padding:64px 0;border-bottom:1px solid var(--line)}
+  .eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:18px}
+  h1{font-family:'Poppins',sans-serif;font-weight:600;font-size:clamp(34px,6vw,60px);letter-spacing:-.02em;line-height:1.05}
+  h2{font-family:'Poppins',sans-serif;font-weight:600;font-size:26px;letter-spacing:-.01em;margin-bottom:6px}
+  .muted{color:var(--muted)}.mono{font-family:var(--mono)}
+  .topbar{position:sticky;top:0;z-index:20;background:rgba(10,10,18,.8);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .topbar .wrap{display:flex;align-items:center;justify-content:space-between;height:58px}
+  .nav a{color:var(--muted);text-decoration:none;font-size:13px;margin-left:20px}.nav a:hover{color:var(--text)}
+  .hero{display:flex;align-items:center;gap:40px;flex-wrap:wrap}
+  .lockup{display:flex;align-items:center;gap:16px}
+  .wm{font-family:'Inter',sans-serif;font-weight:600;letter-spacing:-.03em;color:#F2F0FB}
+  .grid{display:grid;gap:16px}
+  .tile{height:108px;border-radius:22px;display:flex;align-items:center;justify-content:center}
+  .sw{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+  .sw .chip{height:52px;border-radius:10px;margin-bottom:12px}
+  .sw .name{font-weight:500;font-size:14px}.sw .hex{font-family:var(--mono);font-size:12px;color:var(--muted)}.sw .use{font-size:11px;color:var(--faint);margin-top:2px}
+  .do{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px}
+  .card h3{font-size:14px;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .card.good h3{color:var(--mint)}.card.bad h3{color:var(--coral)}
+  .card li{font-size:13px;color:var(--muted);margin:7px 0;list-style:none;padding-left:18px;position:relative}
+  .card li:before{position:absolute;left:0}
+  .card.good li:before{content:"✓";color:var(--mint)}.card.bad li:before{content:"✕";color:var(--coral)}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  td{padding:10px 0;border-bottom:1px solid var(--line);vertical-align:baseline}
+  td:first-child{font-weight:500;width:230px}
+  .footer{padding:40px 0;text-align:center;color:var(--faint);font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="wrap">
+  <span style="display:flex;align-items:center;gap:10px;font-family:'Poppins';font-weight:600">
+    <svg width="24" height="24" viewBox="0 0 64 64"><defs><linearGradient id="nf" gradientUnits="userSpaceOnUse" x1="14" y1="12" x2="50" y2="52"><stop offset="0" stop-color="#C2B6FF"/><stop offset="1" stop-color="#3F6BFF"/></linearGradient></defs><g fill="none" stroke="url(#nf)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"><path d="M24 13V51"/><path d="M24 32L47 15"/><path d="M24 32L47 51"/></g></svg>
+    klaro
+  </span>
+  <span class="nav"><a href="#logo">Logo</a><a href="#color">Color</a><a href="#type">Type</a><a href="#usage">Usage</a></span>
+</div></div>
+
+<section style="border:none;padding-top:80px"><div class="wrap">
+  <div class="eyebrow">Brand guidelines · v1.0</div>
+  <div class="hero">
+    <svg width="150" height="150" viewBox="0 0 150 150" style="flex:0 0 auto">
+      <defs>
+        <linearGradient id="hf" gradientUnits="userSpaceOnUse" x1="50" y1="36" x2="108" y2="120"><stop offset="0" stop-color="#C2B6FF"/><stop offset="0.52" stop-color="#7C66FF"/><stop offset="1" stop-color="#3F6BFF"/></linearGradient>
+        <linearGradient id="hs" gradientUnits="userSpaceOnUse" x1="58" y1="46" x2="108" y2="126"><stop offset="0" stop-color="#3C429A"/><stop offset="1" stop-color="#171B4A"/></linearGradient>
+        <radialGradient id="hg" cx="50%" cy="36%" r="60%"><stop offset="0" stop-color="#352c8f" stop-opacity="0.9"/><stop offset="1" stop-color="#0C0B14" stop-opacity="0"/></radialGradient>
+        <filter id="hd" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur in="SourceAlpha" stdDeviation="4"/><feOffset dx="0" dy="4" result="o"/><feFlood flood-color="#03030f" flood-opacity="0.6"/><feComposite in2="o" operator="in"/></filter>
+      </defs>
+      <rect width="150" height="150" rx="34" fill="#0C0B14"/><rect width="150" height="150" rx="34" fill="url(#hg)"/>
+      <g filter="url(#hd)"><g transform="translate(75,75) scale(2.34) translate(-32,-32)" fill="none" stroke="#000010" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g></g>
+      <g transform="translate(75,75) scale(2.34) translate(-32,-32)">
+        <g fill="none" stroke="url(#hs)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round" transform="translate(1.15,1.5)"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g>
+        <g fill="none" stroke="url(#hf)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g>
+        <g fill="none" stroke="#E6E1FF" stroke-width="2.1" stroke-linecap="round" opacity="0.6"><path d="M19.6 18V46"/><path d="M23.2 30.2L43 16.8"/></g>
+      </g>
+    </svg>
+    <div>
+      <h1>Klaro</h1>
+      <p class="muted" style="font-size:18px;max-width:440px;margin-top:12px">The premium dark expense tracker. A bold layered <b style="color:var(--lviolet);font-weight:600">K</b>, a violet→blue gradient, and a calm, confident interface.</p>
+      <p style="color:var(--lviolet);margin-top:10px;font-style:italic">"See every cent."</p>
+    </div>
+  </div>
+</div></section>
+
+<section id="logo"><div class="wrap">
+  <div class="eyebrow">01 — Logo</div>
+  <h2>The mark</h2>
+  <p class="muted" style="margin-bottom:28px;max-width:560px">A geometric K built as a layered ribbon — gradient face, 3D fold, soft lift. Use the gradient mark on dark, the flat mark on light, and never recolor or rotate it.</p>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+    <div style="text-align:center"><div class="tile" style="background:#0C0B14;border:1px solid var(--line)">
+      <svg width="78" height="78" viewBox="0 0 64 64"><defs><linearGradient id="t1" gradientUnits="userSpaceOnUse" x1="14" y1="12" x2="50" y2="52"><stop offset="0" stop-color="#C2B6FF"/><stop offset="0.5" stop-color="#7C66FF"/><stop offset="1" stop-color="#3F6BFF"/></linearGradient></defs><g fill="none" stroke="#26306E" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" transform="translate(1.1,1.4)"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g><g fill="none" stroke="url(#t1)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g></svg>
+    </div><p class="muted" style="font-size:12px;margin-top:8px">Primary · on dark</p></div>
+    <div style="text-align:center"><div class="tile" style="background:linear-gradient(135deg,#C2B6FF,#4B7BFF)">
+      <svg width="78" height="78" viewBox="0 0 64 64"><g fill="none" stroke="#0C0B14" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g></svg>
+    </div><p class="muted" style="font-size:12px;margin-top:8px">Filled tile</p></div>
+    <div style="text-align:center"><div class="tile" style="background:#F3F1FB">
+      <svg width="78" height="78" viewBox="0 0 64 64"><defs><linearGradient id="t2" gradientUnits="userSpaceOnUse" x1="14" y1="12" x2="50" y2="52"><stop offset="0" stop-color="#7C5CFF"/><stop offset="1" stop-color="#4B7BFF"/></linearGradient></defs><g fill="none" stroke="url(#t2)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g></svg>
+    </div><p class="muted" style="font-size:12px;margin-top:8px">Flat · on light</p></div>
+    <div style="text-align:center"><div class="tile" style="background:#0C0B14;border:1px solid var(--line)">
+      <svg width="78" height="78" viewBox="0 0 64 64"><g fill="none" stroke="#ECEAF7" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16V48"/><path d="M22 32L45 17"/><path d="M22 32L45 49"/></g></svg>
+    </div><p class="muted" style="font-size:12px;margin-top:8px">Monochrome</p></div>
+  </div>
+</div></section>
+
+<section id="color"><div class="wrap">
+  <div class="eyebrow">02 — Color</div>
+  <h2>Palette</h2>
+  <p class="muted" style="margin-bottom:24px">Dark-first. Violet leads, blue supports, mint signals money in, coral warns.</p>
+  <div style="border-radius:14px;height:70px;background:linear-gradient(132deg,#C2B6FF 0%,#7C66FF 52%,#3F6BFF 100%);display:flex;align-items:center;padding:0 18px;margin-bottom:22px">
+    <span style="font-family:'Poppins';font-weight:600;color:#16142e">Klaro gradient — 132° · #7C5CFF → #4B7BFF</span>
+  </div>
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+    <div class="sw"><div class="chip" style="background:#0A0A12;border:1px solid #2a2a3f"></div><div class="name">Ink</div><div class="hex">#0A0A12</div><div class="use">App background</div></div>
+    <div class="sw"><div class="chip" style="background:#14141F"></div><div class="name">Surface</div><div class="hex">#14141F</div><div class="use">Cards</div></div>
+    <div class="sw"><div class="chip" style="background:#1C1C2B"></div><div class="name">Raised</div><div class="hex">#1C1C2B</div><div class="use">Elevated / tiles</div></div>
+    <div class="sw"><div class="chip" style="background:#7C5CFF"></div><div class="name">Violet</div><div class="hex">#7C5CFF</div><div class="use">Primary accent</div></div>
+    <div class="sw"><div class="chip" style="background:#4B7BFF"></div><div class="name">Blue</div><div class="hex">#4B7BFF</div><div class="use">Secondary</div></div>
+    <div class="sw"><div class="chip" style="background:#B7AAFF"></div><div class="name">Light violet</div><div class="hex">#B7AAFF</div><div class="use">Highlight</div></div>
+    <div class="sw"><div class="chip" style="background:#34D399"></div><div class="name">Mint</div><div class="hex">#34D399</div><div class="use">Income / positive</div></div>
+    <div class="sw"><div class="chip" style="background:#FF8A5D"></div><div class="name">Coral</div><div class="hex">#FF8A5D</div><div class="use">Alert / over-budget</div></div>
+    <div class="sw"><div class="chip" style="background:#ECEAF7"></div><div class="name">Text</div><div class="hex">#ECEAF7</div><div class="use">Primary text</div></div>
+    <div class="sw"><div class="chip" style="background:#8D8AA8"></div><div class="name">Muted</div><div class="hex">#8D8AA8</div><div class="use">Secondary text</div></div>
+  </div>
+</div></section>
+
+<section id="type"><div class="wrap">
+  <div class="eyebrow">03 — Typography</div>
+  <h2>Type system</h2>
+  <div class="card" style="margin-top:20px">
+    <div style="font-family:'Poppins';font-weight:600;font-size:44px;letter-spacing:-.02em">Display $3,248.90</div>
+    <div style="font-family:'Poppins';font-weight:600;font-size:26px;margin-top:10px">Heading — spend smarter</div>
+    <div style="font-size:17px;margin-top:10px">Body — Inter, every transaction sorted and searchable, with calm, readable hierarchy.</div>
+    <div style="font-size:13px;color:var(--muted);margin-top:10px">Caption / label — updated 2 min ago</div>
+    <div class="mono" style="font-size:13px;color:var(--muted);margin-top:8px">Mono — JetBrains Mono for figures · 1,284.50</div>
+  </div>
+  <table style="margin-top:20px">
+    <tr><td>Wordmark &amp; headings</td><td class="muted">Poppins SemiBold · tracking −2%</td></tr>
+    <tr><td>UI &amp; body</td><td class="muted">Inter · 400 / 500 / 600</td></tr>
+    <tr><td>Figures &amp; tables</td><td class="muted">JetBrains Mono</td></tr>
+  </table>
+</div></section>
+
+<section id="usage"><div class="wrap">
+  <div class="eyebrow">04 — Usage</div>
+  <h2>Do &amp; don't</h2>
+  <div class="do" style="margin-top:20px">
+    <div class="card good"><h3>Do</h3>
+      <li>Keep the gradient light corner top-left, blue bottom-right.</li>
+      <li>Use the flat mark on light or photographic backgrounds.</li>
+      <li>Give the mark ≥ 1× stem-width of clear space.</li>
+      <li>Swap to the flat K at favicon sizes (≤32px).</li>
+    </div>
+    <div class="card bad"><h3>Don't</h3>
+      <li>Recolor, rotate, or stretch the K.</li>
+      <li>Put the dark-fold version on light backgrounds.</li>
+      <li>Add outlines or extra drop shadows.</li>
+      <li>Place the mark on busy imagery without a tile.</li>
+    </div>
+  </div>
+</div></section>
+
+<div class="footer">Klaro — brand guidelines v1.0 · logo, color &amp; type · See <span class="mono">klaro-icon-handoff.md</span> for the full developer spec.</div>
+
+</body>
+</html>
