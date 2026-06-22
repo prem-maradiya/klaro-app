@@ -203,6 +203,19 @@ class ExpenseProvider extends ChangeNotifier {
       _expenses.where((e) => e.budgetReview).toList()
         ..sort((a, b) => b.date.compareTo(a.date));
 
+  /// This month's one-off / fee payments excluded from the budget (newest first)
+  /// — feeds the "not in budget" list opened from the home one-off line.
+  List<Expense> get oneoffEntriesThisMonth {
+    final now = DateTime.now();
+    return _expenses
+        .where((e) =>
+            e.date.year == now.year &&
+            e.date.month == now.month &&
+            e.excludedFromBudget)
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date));
+  }
+
   /// Decide a payment's budget inclusion — used by the review card and the edit
   /// sheet's "Count toward budget" switch. Updates locally at once (optimistic),
   /// clears the review flag, and PATCHes the backend (retried on failure).

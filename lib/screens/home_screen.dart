@@ -13,6 +13,7 @@ import '../widgets/category_donut.dart';
 import '../widgets/edit_expense_sheet.dart';
 import '../widgets/import_text_sheet.dart';
 import '../widgets/income_sheet.dart';
+import '../widgets/oneoff_sheet.dart';
 import '../widgets/spending_chart.dart';
 import 'budgets_screen.dart';
 import 'label_screen.dart';
@@ -315,19 +316,33 @@ class _SummaryCard extends StatelessWidget {
             ),
           ),
           // Make the held-out one-off spend visible so the headline total still
-          // reconciles (budgeted + one-off = total).
+          // reconciles (budgeted + one-off = total). Tap to see/manage the list.
           if (provider.oneoffThisMonth > 0) ...[
             const SizedBox(height: 6),
-            Row(
-              children: [
-                const Icon(Icons.bookmark_remove_outlined,
-                    size: 13, color: Klaro.textMuted),
-                const SizedBox(width: 4),
-                Text(
-                  '+ ₹${provider.oneoffThisMonth.toStringAsFixed(0)} one-off (not in budget)',
-                  style: const TextStyle(color: Klaro.textMuted, fontSize: 12.5),
+            InkWell(
+              borderRadius: BorderRadius.circular(Klaro.radiusMd),
+              onTap: () => OneOffSheet.show(
+                context,
+                provider: provider,
+                monthLabel: DateFormat('MMMM').format(DateTime.now()),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.bookmark_remove_outlined,
+                        size: 13, color: Klaro.textMuted),
+                    const SizedBox(width: 4),
+                    Text(
+                      '+ ₹${provider.oneoffThisMonth.toStringAsFixed(0)} one-off (not in budget)',
+                      style:
+                          const TextStyle(color: Klaro.textMuted, fontSize: 12.5),
+                    ),
+                    const Icon(Icons.chevron_right,
+                        size: 16, color: Klaro.textFaint),
+                  ],
                 ),
-              ],
+              ),
             ),
           ],
           // Net cash flow — only once some income (credits) has been captured.
