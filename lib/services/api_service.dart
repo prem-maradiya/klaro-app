@@ -333,13 +333,23 @@ class ApiService {
     required int id,
     required String merchant,
     required String category,
+    bool? inBudget,
+    bool? budgetReview,
   }) async {
     try {
       final res = await http
           .patch(
             Uri.parse('$_baseUrl/expenses/$id'),
             headers: _headers,
-            body: jsonEncode({'merchant': merchant, 'category': category, 'is_labeled': true}),
+            body: jsonEncode({
+              'merchant': merchant,
+              'category': category,
+              'is_labeled': true,
+              // Only sent when a budget decision is being synced, so plain label
+              // edits never disturb a payment's budget inclusion.
+              if (inBudget != null) 'in_budget': inBudget,
+              if (budgetReview != null) 'budget_review': budgetReview,
+            }),
           )
           .timeout(const Duration(seconds: 10));
       return res.statusCode == 200;

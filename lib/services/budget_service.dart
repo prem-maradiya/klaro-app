@@ -117,6 +117,7 @@ class BudgetService extends ChangeNotifier {
         if (e.date.year != now.year || e.date.month != now.month) continue;
         if (e.needsLabel) continue;
         if (e.isIncome) continue; // budgets cap spending, not income
+        if (!e.inBudget) continue; // one-off / fee payments are held out
         overallSpent += e.amount;
         final cat = e.category ?? 'Other';
         totals[cat] = (totals[cat] ?? 0) + e.amount;

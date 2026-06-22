@@ -29,6 +29,7 @@ class EditExpenseSheet extends StatefulWidget {
 class _EditExpenseSheetState extends State<EditExpenseSheet> {
   late final TextEditingController _merchantCtrl;
   late String _category;
+  late bool _inBudget;
   bool _saving = false;
 
   @override
@@ -39,6 +40,7 @@ class _EditExpenseSheetState extends State<EditExpenseSheet> {
     _category = (cat != null && SmsService.allCategories.contains(cat))
         ? cat
         : 'Other';
+    _inBudget = widget.expense.inBudget;
   }
 
   @override
@@ -60,6 +62,8 @@ class _EditExpenseSheetState extends State<EditExpenseSheet> {
           expense: widget.expense,
           merchant: merchant,
           category: _category,
+          // Income never counts toward a spending budget — leave it untouched.
+          inBudget: widget.expense.isIncome ? null : _inBudget,
         );
     if (mounted) Navigator.pop(context);
   }
@@ -154,6 +158,35 @@ class _EditExpenseSheetState extends State<EditExpenseSheet> {
                   .toList(),
               onChanged: (v) => setState(() => _category = v ?? 'Other'),
             ),
+            // Budget inclusion — only meaningful for spending (debits). Lets the
+            // user pull a one-off / fee out of the budget, or add one back in.
+            if (!e.isIncome) ...[
+              const SizedBox(height: 8),
+              Container(
+                decoration: BoxDecoration(
+                  color: Klaro.surface,
+                  borderRadius: BorderRadius.circular(Klaro.radiusMd),
+                  border: Border.all(color: Klaro.line),
+                ),
+                child: SwitchListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                  dense: true,
+                  value: _inBudget,
+                  activeColor: Klaro.violet,
+                  title: const Text('Count toward budget',
+                      style: TextStyle(color: Klaro.text, fontSize: 14)),
+                  subtitle: Text(
+                    _inBudget
+                        ? 'Part of your day-to-day budget'
+                        : 'A one-off — tracked, but not in the budget',
+                    style:
+                        const TextStyle(color: Klaro.textMuted, fontSize: 11.5),
+                  ),
+                  onChanged: (v) => setState(() => _inBudget = v),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Row(
               children: [

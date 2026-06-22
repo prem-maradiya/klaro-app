@@ -160,6 +160,92 @@ class ExpenseProvider extends ChangeNotifier {
     return totals;
   }
 
+  /// Spend that counts toward the monthly budget: this month's labeled debits
+  /// MINUS large one-off / fee payments held out of the budget. This — not
+  /// [totalThisMonth] — is what the budget bar compares against the limit.
+  double get budgetedThisMonth {
+    final now = DateTime.now();
+    return _expenses
+        .where((e) =>
+            e.date.year == now.year &&
+            e.date.month == now.month &&
+            !e.needsLabel &&
+            !e.isIncome &&
+            e.inBudget)
+        .fold(0.0, (sum, e) => sum + e.amount);
+  }
+
+  /// Large one-off / fee spend this month that the user excluded from the budget
+  /// (already reviewed) — shown next to the budget bar so nothing is hidden.
+  double get oneoffThisMonth {
+    final now = DateTime.now();
+    return _expenses
+        .where((e) =>
+            e.date.year == now.year &&
+            e.date.month == now.month &&
+            e.excludedFromBudget)
+        .fold(0.0, (sum, e) => sum + e.amount);
+  }
+
+  /// Large/fee captures awaiting an include/exclude decision (newest first) —
+  /// feeds the home "review" card. Held out of the budget until decided.
+  List<Expense> get budgetReviewQueue =>
+      _expenses.where((e) => e.budgetReview).toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
+
+  /// Per-category spend that counts toward the budget (one-offs excluded) — for
+  /// the per-category progress bars on the Budgets screen.
+  Map<String, double> get budgetedCategoryTotals {
+    final now = DateTime.now();
+    final totals = <String, double>{};
+    for (final e in _expenses.where((e) =>
+        e.date.year == now.year &&
+        e.date.month == now.month &&
+        !e.needsLabel &&
+        !e.isIncome &&
+        e.inBudget)) {
+      final cat = e.category ?? 'Other';
+      totals[cat] = (totals[cat] ?? 0) + e.amount;
+    }
+    return totals;
+  }
+
+  /// Decide a payment's budget inclusion — used by the review card and the edit
+  /// sheet's "Count toward budget" switch. Updates locally at once (optimistic),
+  /// clears the review flag, and PATCHes the backend (retried on failure).
+  Future<void> setInBudget(Expense expense, bool include) async {
+    final idx = _expenses.indexOf(expense);
+    if (idx == -1) return;
+    final updated = expense.copyWith(
+      inBudget: include,
+      budgetReview: false,
+      dirty: expense.id != null,
+    );
+    _expenses[idx] = updated;
+    await _saveLocal();
+    notifyListeners();
+    // Including/excluding a spend changes what counts against the budget.
+    BudgetService.checkAlerts();
+
+    if (updated.id != null) {
+      final ok = await ApiService.instance.updateExpenseLabel(
+        id: updated.id!,
+        merchant: updated.merchant,
+        category: updated.category ?? 'Other',
+        inBudget: include,
+        budgetReview: false,
+      );
+      if (ok) {
+        final i = _expenses.indexWhere((x) => x.id == updated.id);
+        if (i != -1) _expenses[i] = _expenses[i].copyWith(dirty: false);
+        await _saveLocal();
+        notifyListeners();
+      } else {
+        _scheduleRetry();
+      }
+    }
+  }
+
   Future<void> initialize() async {
     await _loadLocal();
     await _loadPendingDeletes();
@@ -342,6 +428,8 @@ class ExpenseProvider extends ChangeNotifier {
           id: e.id!,
           merchant: e.merchant,
           category: e.category ?? 'Other',
+          inBudget: e.inBudget,
+          budgetReview: e.budgetReview,
         );
         if (ok) {
           final idx = _expenses.indexWhere((x) => x.id == e.id);
@@ -403,11 +491,15 @@ class ExpenseProvider extends ChangeNotifier {
           changed = true;
         } else if (r.merchant != e.merchant ||
             (r.category != null && r.category != e.category) ||
-            r.isLabeled != e.isLabeled) {
+            r.isLabeled != e.isLabeled ||
+            r.inBudget != e.inBudget ||
+            r.budgetReview != e.budgetReview) {
           _expenses[i] = e.copyWith(
             merchant: r.merchant,
             category: r.category,
             isLabeled: r.isLabeled,
+            inBudget: r.inBudget,
+            budgetReview: r.budgetReview,
           );
           changed = true;
         }
@@ -492,6 +584,7 @@ class ExpenseProvider extends ChangeNotifier {
     required Expense expense,
     required String merchant,
     required String category,
+    bool? inBudget,
   }) async {
     final idx = _expenses.indexOf(expense);
     if (idx == -1) return;
@@ -502,6 +595,10 @@ class ExpenseProvider extends ChangeNotifier {
       merchant: merchant,
       category: category,
       isLabeled: true,
+      // When the edit sheet's budget switch was set, apply it and clear any
+      // pending review in the same save; otherwise leave inclusion untouched.
+      inBudget: inBudget,
+      budgetReview: inBudget != null ? false : null,
       dirty: expense.id != null,
     );
     _expenses[idx] = updated;
@@ -517,6 +614,8 @@ class ExpenseProvider extends ChangeNotifier {
         id: updated.id!,
         merchant: merchant,
         category: category,
+        inBudget: inBudget,
+        budgetReview: inBudget != null ? false : null,
       );
       if (ok) {
         final i = _expenses.indexWhere((x) => x.id == updated.id);
@@ -569,9 +668,10 @@ class ExpenseProvider extends ChangeNotifier {
     if (idx == -1) return true;
 
     // Adopt whatever the backend changed: it assigns an id, may auto-categorize
-    // unknown merchants, AND applies any learned RENAME (your preferred name for
-    // that payee). copyWith(field: null) keeps the local value, so we only take
-    // fields the backend actually changed.
+    // unknown merchants, applies any learned RENAME (your preferred name for
+    // that payee), AND decides budget inclusion (large/fee captures are held out
+    // and flagged for review). copyWith(field: null) keeps the local value, so we
+    // only take fields the backend actually changed.
     _expenses[idx] = local.copyWith(
       id: created.id,
       merchant: created.merchant != local.merchant ? created.merchant : null,
@@ -579,6 +679,9 @@ class ExpenseProvider extends ChangeNotifier {
           ? created.category
           : null,
       isLabeled: created.isLabeled != local.isLabeled ? created.isLabeled : null,
+      inBudget: created.inBudget != local.inBudget ? created.inBudget : null,
+      budgetReview:
+          created.budgetReview != local.budgetReview ? created.budgetReview : null,
     );
     await _saveLocal();
     notifyListeners();

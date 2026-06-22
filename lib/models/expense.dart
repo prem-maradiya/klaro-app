@@ -21,6 +21,15 @@ class Expense {
   /// un-synced expenses (id == null) carry their edits in the eventual POST.
   final bool dirty;
 
+  /// Whether this spend counts toward the monthly budget. Small day-to-day
+  /// spends do (the default); a large one-off / fee payment is held out until
+  /// the user decides. Never relevant for income (credits).
+  final bool inBudget;
+
+  /// A large/fee-like capture held out of the budget and awaiting the user's
+  /// include/exclude decision (shown in the home review card).
+  final bool budgetReview;
+
   const Expense({
     this.id,
     required this.merchant,
@@ -33,11 +42,17 @@ class Expense {
     this.method = 'upi',
     this.direction = 'debit',
     this.dirty = false,
+    this.inBudget = true,
+    this.budgetReview = false,
   });
 
   bool get needsLabel => !isLabeled;
   bool get isCard => method == 'card';
   bool get isIncome => direction == 'credit';
+
+  /// A spend the user excluded from the budget (and already reviewed) — shown
+  /// with a "not in budget" tag in the transaction list.
+  bool get excludedFromBudget => direction == 'debit' && !inBudget && !budgetReview;
 
   /// Synced means the backend has this expense AND all local edits to it.
   bool get isSynced => id != null && !dirty;
@@ -50,6 +65,8 @@ class Expense {
     String? method,
     String? direction,
     bool? dirty,
+    bool? inBudget,
+    bool? budgetReview,
   }) {
     return Expense(
       id: id ?? this.id,
@@ -63,6 +80,8 @@ class Expense {
       method: method ?? this.method,
       direction: direction ?? this.direction,
       dirty: dirty ?? this.dirty,
+      inBudget: inBudget ?? this.inBudget,
+      budgetReview: budgetReview ?? this.budgetReview,
     );
   }
 
@@ -79,6 +98,8 @@ class Expense {
         'category': category,
         'method': method,
         'direction': direction,
+        'in_budget': inBudget,
+        'budget_review': budgetReview,
         // Local-only sync state; the backend ignores unknown fields.
         'dirty': dirty,
       };
@@ -95,5 +116,7 @@ class Expense {
         method: json['method'] ?? 'upi',
         direction: json['direction'] ?? 'debit',
         dirty: json['dirty'] ?? false,
+        inBudget: json['in_budget'] ?? true,
+        budgetReview: json['budget_review'] ?? false,
       );
 }

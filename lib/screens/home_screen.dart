@@ -219,6 +219,13 @@ class _Body extends StatelessWidget {
         return CustomScrollView(
           slivers: [
             SliverToBoxAdapter(child: _SummaryCard(provider: provider)),
+            if (provider.budgetReviewQueue.isNotEmpty)
+              SliverToBoxAdapter(
+                child: _BudgetReviewCard(
+                  items: provider.budgetReviewQueue,
+                  onDecide: provider.setInBudget,
+                ),
+              ),
             if (provider.totalThisMonth > 0)
               SliverToBoxAdapter(
                 child: SpendingChartCard(
@@ -299,10 +306,28 @@ class _SummaryCard extends StatelessWidget {
           ListenableBuilder(
             listenable: BudgetService.instance,
             builder: (context, _) => _BudgetBar(
-              spent: provider.totalThisMonth,
+              // Budget tracks day-to-day spend; large one-off / fee payments are
+              // held out (shown separately below) so they can't falsely blow it.
+              spent: provider.budgetedThisMonth,
               limit: BudgetService.instance.overall,
             ),
           ),
+          // Make the held-out one-off spend visible so the headline total still
+          // reconciles (budgeted + one-off = total).
+          if (provider.oneoffThisMonth > 0) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.bookmark_remove_outlined,
+                    size: 13, color: Klaro.textMuted),
+                const SizedBox(width: 4),
+                Text(
+                  '+ ₹${provider.oneoffThisMonth.toStringAsFixed(0)} one-off (not in budget)',
+                  style: const TextStyle(color: Klaro.textMuted, fontSize: 12.5),
+                ),
+              ],
+            ),
+          ],
           // Net cash flow — only once some income (credits) has been captured.
           // Tap to break the income down by source.
           if (provider.incomeThisMonth > 0) ...[
@@ -399,6 +424,111 @@ class _BudgetBar extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Prompts the user to decide whether large/fee-like captures count toward the
+/// monthly budget. They're held out until decided, so a one-time college fee or
+/// rent payment never triggers a false "budget exceeded".
+class _BudgetReviewCard extends StatelessWidget {
+  const _BudgetReviewCard({required this.items, required this.onDecide});
+  final List<Expense> items;
+  final Future<void> Function(Expense, bool) onDecide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Klaro.alert.withValues(alpha: 0.08),
+        border: Border.all(color: Klaro.alert.withValues(alpha: 0.30)),
+        borderRadius: BorderRadius.circular(Klaro.radiusMd),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.help_outline, size: 18, color: Klaro.alert),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  items.length == 1
+                      ? 'A large payment — count it in your budget?'
+                      : '${items.length} large payments — count them in your budget?',
+                  style: const TextStyle(
+                      color: Klaro.text,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          const Padding(
+            padding: EdgeInsets.only(left: 26, top: 2),
+            child: Text(
+              "Held out until you decide, so a one-off can't falsely blow your budget.",
+              style: TextStyle(color: Klaro.textMuted, fontSize: 11.5),
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (final e in items) _ReviewRow(expense: e, onDecide: onDecide),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewRow extends StatelessWidget {
+  const _ReviewRow({required this.expense, required this.onDecide});
+  final Expense expense;
+  final Future<void> Function(Expense, bool) onDecide;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  expense.merchant.isEmpty ? 'Unknown' : expense.merchant,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Klaro.text, fontSize: 13),
+                ),
+                Text(
+                  '₹${expense.amount.toStringAsFixed(0)}'
+                  '${expense.category != null ? ' · ${expense.category}' : ''}',
+                  style: const TextStyle(color: Klaro.textMuted, fontSize: 11.5),
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => onDecide(expense, false),
+            style: TextButton.styleFrom(
+                minimumSize: const Size(0, 34),
+                padding: const EdgeInsets.symmetric(horizontal: 10)),
+            child: const Text('One-off',
+                style: TextStyle(color: Klaro.textMuted, fontSize: 12.5)),
+          ),
+          const SizedBox(width: 4),
+          FilledButton(
+            onPressed: () => onDecide(expense, true),
+            style: FilledButton.styleFrom(
+                backgroundColor: Klaro.violet,
+                minimumSize: const Size(0, 34),
+                padding: const EdgeInsets.symmetric(horizontal: 12)),
+            child: const Text('In budget', style: TextStyle(fontSize: 12.5)),
+          ),
+        ],
       ),
     );
   }
@@ -563,6 +693,29 @@ class _ExpenseTile extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
                     color: Klaro.violetLt,
+                  ),
+                ),
+              ),
+            ],
+            // Marks a spend the user kept out of the budget (a one-off / fee).
+            // It still shows here and in the month total — just not the budget.
+            if (expense.excludedFromBudget) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Klaro.textMuted.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(5),
+                  border: Border.all(color: Klaro.line),
+                ),
+                child: const Text(
+                  'ONE-OFF',
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                    color: Klaro.textMuted,
                   ),
                 ),
               ),

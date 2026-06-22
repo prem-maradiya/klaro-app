@@ -21,7 +21,9 @@ class BudgetsScreen extends StatelessWidget {
         builder: (context, _) {
           final provider = context.watch<ExpenseProvider>();
           final budgets = BudgetService.instance;
-          final totals = provider.categoryTotals;
+          // Budget progress uses budgeted spend (one-off / fee payments held out),
+          // matching the home budget bar.
+          final totals = provider.budgetedCategoryTotals;
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -29,7 +31,7 @@ class BudgetsScreen extends StatelessWidget {
               _BudgetTile(
                 name: 'Monthly budget',
                 categoryKey: BudgetService.overallKey,
-                spent: provider.totalThisMonth,
+                spent: provider.budgetedThisMonth,
                 limit: budgets.overall,
                 emphasized: true,
               ),
