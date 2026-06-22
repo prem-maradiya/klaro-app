@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../providers/expense_provider.dart';
 import '../services/budget_service.dart';
 import '../services/sms_service.dart';
 import '../theme/klaro.dart';
 import '../widgets/klaro_button.dart';
+import '../widgets/oneoff_sheet.dart';
 
 /// Set / edit monthly spending limits — one overall cap plus optional
 /// per-category limits, each with this month's progress.
@@ -35,6 +37,20 @@ class BudgetsScreen extends StatelessWidget {
                 limit: budgets.overall,
                 emphasized: true,
               ),
+              // Entry point to the one-off / fee payments held out of the budget,
+              // so they're easy to find and re-include. Shown only when any exist.
+              if (provider.oneoffThisMonth > 0) ...[
+                const SizedBox(height: 10),
+                _NotInBudgetRow(
+                  count: provider.oneoffEntriesThisMonth.length,
+                  total: provider.oneoffThisMonth,
+                  onTap: () => OneOffSheet.show(
+                    context,
+                    provider: provider,
+                    monthLabel: DateFormat('MMMM').format(DateTime.now()),
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
               const Padding(
                 padding: EdgeInsets.only(left: 4, bottom: 8),
@@ -61,6 +77,74 @@ class BudgetsScreen extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Tappable summary row → the "Not in budget" sheet (one-off / fee payments
+/// held out of the budget this month, with one-tap re-include).
+class _NotInBudgetRow extends StatelessWidget {
+  const _NotInBudgetRow({
+    required this.count,
+    required this.total,
+    required this.onTap,
+  });
+  final int count;
+  final double total;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(Klaro.radiusLg),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: Klaro.surface,
+          borderRadius: BorderRadius.circular(Klaro.radiusLg),
+          border: Border.all(color: Klaro.line),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Klaro.textMuted.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(Klaro.radiusMd),
+              ),
+              child: const Icon(Icons.bookmark_remove_outlined,
+                  size: 18, color: Klaro.textMuted),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Not in budget',
+                      style: TextStyle(
+                          color: Klaro.text,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$count one-off payment${count == 1 ? '' : 's'} this month',
+                    style:
+                        const TextStyle(color: Klaro.textMuted, fontSize: 11.5),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              '₹${total.toStringAsFixed(0)}',
+              style: Klaro.figures(size: 14, weight: FontWeight.w600)
+                  .copyWith(color: Klaro.textMuted),
+            ),
+            const Icon(Icons.chevron_right, size: 18, color: Klaro.textFaint),
+          ],
+        ),
       ),
     );
   }
