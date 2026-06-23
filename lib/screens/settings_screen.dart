@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/klaro_links.dart';
+import '../providers/expense_provider.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
 import '../theme/klaro.dart';
@@ -175,8 +177,196 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
           const _HelpSupportSection(),
+          // Only meaningful when signed in — account deletion needs a session.
+          if (AuthService.instance.isSignedIn) ...[
+            const SizedBox(height: 24),
+            const _DangerZoneSection(),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// Irreversible account actions. Houses in-app account deletion — a Play Store
+/// requirement for any app with user accounts: the user must be able to request
+/// deletion of their account and data from within the app itself.
+class _DangerZoneSection extends StatefulWidget {
+  const _DangerZoneSection();
+
+  @override
+  State<_DangerZoneSection> createState() => _DangerZoneSectionState();
+}
+
+class _DangerZoneSectionState extends State<_DangerZoneSection> {
+  bool _deleting = false;
+
+  Future<void> _confirmAndDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const _DeleteAccountDialog(),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _deleting = true);
+    final ok = await ApiService.instance.deleteAccount();
+    if (!mounted) return;
+
+    if (!ok) {
+      setState(() => _deleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Couldn’t delete your account — check your connection and try again.'),
+        ),
+      );
+      return;
+    }
+
+    // Backend wiped: clear the device copy, end the session, return to the gate.
+    await context.read<ExpenseProvider>().clearLocalData();
+    await AuthService.instance.signOut();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Your account and data have been deleted.')),
+    );
+    Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Danger zone',
+          style: TextStyle(
+            fontFamily: Klaro.display,
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Klaro.danger,
+          ),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Permanently delete your account and everything in it — expenses, '
+          'budgets and learned categories. This cannot be undone.',
+          style: TextStyle(fontSize: 12.5, color: Klaro.textMuted),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: Klaro.danger.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(Klaro.radiusMd),
+            border: Border.all(color: Klaro.danger.withValues(alpha: 0.30)),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(Klaro.radiusMd),
+            onTap: _deleting ? null : _confirmAndDelete,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              child: Row(
+                children: [
+                  if (_deleting)
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Klaro.danger),
+                    )
+                  else
+                    const Icon(Icons.delete_forever_outlined,
+                        size: 20, color: Klaro.danger),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _deleting ? 'Deleting your account…' : 'Delete account',
+                      style: const TextStyle(
+                          color: Klaro.danger,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Two-factor confirm for an irreversible delete: the user must type DELETE so
+/// it can never happen on a stray tap.
+class _DeleteAccountDialog extends StatefulWidget {
+  const _DeleteAccountDialog();
+
+  @override
+  State<_DeleteAccountDialog> createState() => _DeleteAccountDialogState();
+}
+
+class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
+  final _ctrl = TextEditingController();
+  static const _phrase = 'DELETE';
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canDelete = _ctrl.text.trim().toUpperCase() == _phrase;
+    return AlertDialog(
+      backgroundColor: Klaro.raised,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(Klaro.radiusLg)),
+      title: const Text('Delete account?',
+          style: TextStyle(
+              fontFamily: Klaro.display, fontSize: 17, color: Klaro.text)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'This permanently erases your account and all your data for '
+            '${AuthService.instance.email ?? 'this account'}. It cannot be undone.',
+            style: const TextStyle(color: Klaro.textMuted, fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          const Text('Type DELETE to confirm',
+              style: TextStyle(color: Klaro.textMuted, fontSize: 12)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _ctrl,
+            autofocus: true,
+            autocorrect: false,
+            enableSuggestions: false,
+            textCapitalization: TextCapitalization.characters,
+            onChanged: (_) => setState(() {}),
+            decoration: const InputDecoration(
+              hintText: 'DELETE',
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel', style: TextStyle(color: Klaro.textMuted)),
+        ),
+        TextButton(
+          onPressed: canDelete ? () => Navigator.pop(context, true) : null,
+          child: Text('Delete forever',
+              style: TextStyle(
+                  color: canDelete ? Klaro.danger : Klaro.textFaint)),
+        ),
+      ],
     );
   }
 }

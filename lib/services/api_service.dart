@@ -329,6 +329,20 @@ class ApiService {
     }
   }
 
+  /// Permanently delete the signed-in user's account and ALL their data on the
+  /// backend (every table + the Supabase auth record). Irreversible — the caller
+  /// confirms with the user first. Returns true on success (HTTP 200).
+  Future<bool> deleteAccount() async {
+    try {
+      final res = await http
+          .delete(Uri.parse('$_baseUrl/account'), headers: _headers)
+          .timeout(const Duration(seconds: 20));
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> updateExpenseLabel({
     required int id,
     required String merchant,

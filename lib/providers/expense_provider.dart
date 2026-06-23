@@ -305,6 +305,22 @@ class ExpenseProvider extends ChangeNotifier {
     syncNow();
   }
 
+  /// Wipe all locally-stored expense data — used after the user deletes their
+  /// account (the backend wipe already ran). Clears the in-memory lists and the
+  /// on-disk cache / sync queue / catch-up baseline so nothing of the old
+  /// account survives on the device.
+  Future<void> clearLocalData() async {
+    _expenses.clear();
+    _pendingDeletes.clear();
+    _backoff.reset();
+    _syncGaveUp = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_localKey);
+    await prefs.remove(_deletesKey);
+    await prefs.remove(_catchupKey);
+    notifyListeners();
+  }
+
   /// Scan the inbox for SMS that arrived after the last scan and add any
   /// transactions we don't already have. Self-heals captures the OS dropped:
   /// a missed background broadcast otherwise stays invisible until the user
