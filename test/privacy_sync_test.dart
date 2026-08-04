@@ -7,6 +7,7 @@
 // SMS is still RETAINED locally (`toJson`), so nothing is lost on the device.
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:expense_tracker/models/expense.dart';
 import 'package:expense_tracker/services/sms_service.dart';
 
 void main() {
@@ -129,6 +130,56 @@ void main() {
         expect(sync['source'], 'sms');
       });
     }
+
+    // Regression guard for the new-device flow: restore an account on a fresh
+    // phone (rows arrive WITHOUT the raw SMS, by design), then import the inbox.
+    // Identity must survive that gap via the hash, or every transaction would be
+    // added a second time and the user's spending would silently double.
+    test('a restored transaction still matches the same SMS re-parsed', () {
+      final s = samples.first;
+      final parsed = SmsService.parseExpense(
+          body: s['body'] as String, sender: s['sender'] as String, date: d)!;
+
+      // What the backend hands back on a new device: cleaned fields + the hash,
+      // and explicitly no raw_sms / upi_id.
+      final restored = Expense.fromJson({
+        'id': 42,
+        'merchant': parsed.merchant,
+        'amount': parsed.amount,
+        'date': parsed.date.toIso8601String(),
+        'category': parsed.category,
+        'is_labeled': parsed.isLabeled,
+        'direction': parsed.direction,
+        'raw_sms_hash': parsed.syncHash,
+      });
+
+      expect(restored.rawSms, isEmpty, reason: 'backend must not return the SMS');
+      expect(restored.syncHash, isNull, reason: 'nothing to hash locally');
+      expect(restored.dedupeHash, isNotNull);
+      expect(restored.dedupeHash, parsed.dedupeHash,
+          reason: 'restored row and re-parsed SMS must share one identity');
+    });
+
+    test('dedupe identity survives a local save/load round-trip', () {
+      final restored = Expense.fromJson({
+        'merchant': 'Zomato', 'amount': 285.0,
+        'date': d.toIso8601String(), 'raw_sms_hash': 'f' * 64,
+      });
+      // Written to disk and read back (app restart) — the hash must persist,
+      // since there's no raw SMS to recompute it from.
+      final reloaded = Expense.fromJson(restored.toJson());
+      expect(reloaded.dedupeHash, 'f' * 64);
+    });
+
+    test('two unrelated transactions never share an identity', () {
+      final a = SmsService.parseExpense(
+          body: samples[0]['body'] as String,
+          sender: samples[0]['sender'] as String, date: d)!;
+      final b = SmsService.parseExpense(
+          body: samples[1]['body'] as String,
+          sender: samples[1]['sender'] as String, date: d)!;
+      expect(a.dedupeHash, isNot(equals(b.dedupeHash)));
+    });
 
     test('blanket guarantee: no sample ever leaks its raw body or PII keys', () {
       for (final s in samples) {

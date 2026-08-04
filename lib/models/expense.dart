@@ -33,6 +33,12 @@ class Expense {
   /// include/exclude decision (shown in the home review card).
   final bool budgetReview;
 
+  /// De-duplication hash as returned by the backend. Rows restored on a new
+  /// device carry this but NOT [rawSms] (the raw message never leaves the
+  /// phone), so it's the only way to recognize them as the same transaction a
+  /// later inbox scan re-parses. See [dedupeHash].
+  final String? remoteHash;
+
   const Expense({
     this.id,
     required this.merchant,
@@ -47,6 +53,7 @@ class Expense {
     this.dirty = false,
     this.inBudget = true,
     this.budgetReview = false,
+    this.remoteHash,
   });
 
   bool get needsLabel => !isLabeled;
@@ -71,6 +78,13 @@ class Expense {
     return sha256.convert(utf8.encode(stripped)).toString();
   }
 
+  /// The identity used to recognize the same transaction twice: the hash of the
+  /// on-device message when we still have it, otherwise the hash the backend
+  /// returned. Without this fallback, a transaction restored from the backend
+  /// (which has no raw SMS) would not match the same message re-parsed from the
+  /// inbox — and a history import would double-count everything.
+  String? get dedupeHash => syncHash ?? remoteHash;
+
   Expense copyWith({
     int? id,
     String? merchant,
@@ -81,6 +95,7 @@ class Expense {
     bool? dirty,
     bool? inBudget,
     bool? budgetReview,
+    String? remoteHash,
   }) {
     return Expense(
       id: id ?? this.id,
@@ -96,6 +111,7 @@ class Expense {
       dirty: dirty ?? this.dirty,
       inBudget: inBudget ?? this.inBudget,
       budgetReview: budgetReview ?? this.budgetReview,
+      remoteHash: remoteHash ?? this.remoteHash,
     );
   }
 
@@ -114,6 +130,9 @@ class Expense {
         'direction': direction,
         'in_budget': inBudget,
         'budget_review': budgetReview,
+        // Kept on disk so a restored-from-backend row still knows its dedupe
+        // identity after an app restart (it has no raw SMS to recompute from).
+        'raw_sms_hash': remoteHash,
         // Local-only sync state; the backend ignores unknown fields.
         'dirty': dirty,
       };
@@ -156,5 +175,6 @@ class Expense {
         dirty: json['dirty'] ?? false,
         inBudget: json['in_budget'] ?? true,
         budgetReview: json['budget_review'] ?? false,
+        remoteHash: json['raw_sms_hash'],
       );
 }

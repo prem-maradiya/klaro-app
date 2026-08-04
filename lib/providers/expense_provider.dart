@@ -38,6 +38,12 @@ class ExpenseProvider extends ChangeNotifier {
   static const _localKey = 'local_expenses';
   static const _deletesKey = 'pending_deletes';
   static const _catchupKey = 'last_catchup_ms';
+  // Set once the user has imported (or declined) their SMS history, so the
+  // first-run offer is never shown again.
+  static const _historyDoneKey = 'history_import_done';
+
+  /// How far back the first-run history import reaches.
+  static const historyImportMonths = 6;
 
   final List<Expense> _expenses = [];
 
@@ -50,6 +56,20 @@ class ExpenseProvider extends ChangeNotifier {
   StreamSubscription<List<ConnectivityResult>>? _connSub;
   bool _syncing = false;
   bool _syncGaveUp = false;
+
+  // First-run history import: the phone's inbox already holds months of bank
+  // messages, so a brand-new install can be populated instantly instead of
+  // starting empty (which reads as "the app doesn't work").
+  bool _needsHistoryImport = false;
+  bool _importingHistory = false;
+
+  /// True when this is a fresh install with SMS access and the user hasn't yet
+  /// imported (or declined) their existing inbox history — the home screen
+  /// offers a one-tap import while this is set.
+  bool get needsHistoryImport => _needsHistoryImport;
+
+  /// True while the history import is running (drives the progress state).
+  bool get importingHistory => _importingHistory;
 
   // Always newest-first for display, regardless of insertion/import order.
   List<Expense> get expenses {
@@ -318,6 +338,8 @@ class ExpenseProvider extends ChangeNotifier {
     await prefs.remove(_localKey);
     await prefs.remove(_deletesKey);
     await prefs.remove(_catchupKey);
+    // Starting over: offer the history import again on the next sign-in.
+    await prefs.remove(_historyDoneKey);
     notifyListeners();
   }
 
@@ -331,8 +353,14 @@ class ExpenseProvider extends ChangeNotifier {
       final last = prefs.getInt(_catchupKey);
       final nowMs = DateTime.now().millisecondsSinceEpoch;
       if (last == null) {
-        // First run: no baseline yet — history comes via the manual import.
+        // First run: start live capture from now, and flag that the inbox's
+        // existing history hasn't been imported yet so the home screen can
+        // offer it in one tap (rather than leaving a new user on an empty app).
         await prefs.setInt(_catchupKey, nowMs);
+        if (prefs.getBool(_historyDoneKey) != true) {
+          _needsHistoryImport = true;
+          notifyListeners();
+        }
         return;
       }
 
@@ -556,16 +584,65 @@ class ExpenseProvider extends ChangeNotifier {
 
   Future<void> importFromInbox() async {
     final expenses = await SmsService.instance.importInboxExpenses();
+    await _ingestImported(expenses);
+    // A manual import covers the history too — stop offering the first-run one.
+    await _markHistoryDone();
+  }
 
+  /// First-run history import: pull the last [historyImportMonths] months of
+  /// bank SMS from the inbox so a new install opens with real spending instead
+  /// of a blank screen. The offer is cleared either way, so a user is never
+  /// nagged twice.
+  ///
+  /// Returns `(added, found)` — `found` is how many transactions the inbox scan
+  /// recognized, `added` how many were actually new. They differ when the data
+  /// is already present (e.g. a returning user on a new phone who just restored
+  /// from the backend), which lets the UI say "already up to date" instead of
+  /// the misleading "nothing found".
+  Future<({int added, int found})> importHistory() async {
+    if (_importingHistory) return (added: 0, found: 0);
+    _importingHistory = true;
+    notifyListeners();
+
+    var added = 0;
+    var found = 0;
+    try {
+      final since = DateTime.now()
+          .subtract(const Duration(days: historyImportMonths * 31))
+          .millisecondsSinceEpoch;
+      final expenses = await SmsService.instance
+          .importInboxExpenses(maxMessages: 2000, sinceMs: since);
+      found = expenses.length;
+      added = await _ingestImported(expenses);
+    } catch (_) {
+      // Inbox unreadable (permission revoked / platform error) — not fatal.
+    }
+
+    _importingHistory = false;
+    await _markHistoryDone();
+    return (added: added, found: found);
+  }
+
+  /// The user declined the history offer — don't ask again.
+  Future<void> dismissHistoryImport() => _markHistoryDone();
+
+  Future<void> _markHistoryDone() async {
+    _needsHistoryImport = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_historyDoneKey, true);
+    notifyListeners();
+  }
+
+  /// Shared tail of any inbox import: dedupe, store locally first for an instant
+  /// UI, then sync to the backend SEQUENTIALLY so a bulk import doesn't fire
+  /// dozens of concurrent requests (which would exhaust the DB pool). The
+  /// backend also dedupes (hash + amount + time window), so a re-import can
+  /// never double-count server-side. Returns the number of new transactions.
+  Future<int> _ingestImported(List<Expense> expenses) async {
     // A full import covers everything up to now — move the catch-up baseline.
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_catchupKey, DateTime.now().millisecondsSinceEpoch);
 
-    // Collect new ones (dedupe against existing) and add them all locally first
-    // for an instant UI, then sync to the backend SEQUENTIALLY so a bulk import
-    // doesn't fire dozens of concurrent requests (which exhausts the DB pool and
-    // hammers the AI). The backend also dedupes (raw_sms hash + amount + time
-    // window), so a re-import can never double-count server-side.
     final toAdd = <Expense>[];
     for (final e in expenses) {
       if (!_isDuplicate(e)) {
@@ -573,7 +650,7 @@ class ExpenseProvider extends ChangeNotifier {
         toAdd.add(e);
       }
     }
-    if (toAdd.isEmpty) return;
+    if (toAdd.isEmpty) return 0;
 
     await _saveLocal();
     notifyListeners();
@@ -584,6 +661,7 @@ class ExpenseProvider extends ChangeNotifier {
     }
     if (!allOk) _scheduleRetry();
     await BudgetService.checkAlerts();
+    return toAdd.length;
   }
 
   Future<void> addExpense(Expense expense) async {
@@ -710,19 +788,22 @@ class ExpenseProvider extends ChangeNotifier {
     return true;
   }
 
+  /// True when we already hold this transaction.
+  ///
+  /// Matches on the de-duplication HASH rather than the raw message, because a
+  /// row restored from the backend carries no raw SMS (it never leaves the
+  /// device) — comparing text would make a restored transaction look brand new
+  /// and a history import would then double-count everything. The hash is
+  /// computed identically on both sides, so the two forms still match exactly.
   bool _isDuplicate(Expense candidate) {
-    final key = _smsKey(candidate.rawSms);
+    final key = candidate.dedupeHash;
     return _expenses.any((e) =>
         e.amount == candidate.amount &&
         e.date.difference(candidate.date).abs().inMinutes < 5 &&
-        _smsKey(e.rawSms) == key);
+        // Equal hashes = same message. Both null (two manual entries with no
+        // SMS) falls back to amount + time, as before. One null = different.
+        e.dedupeHash == key);
   }
-
-  /// Whitespace-free comparison key: the SAME SMS reaches us with slightly
-  /// different spacing depending on the path (live broadcast vs inbox read —
-  /// observed `<Mob.No>` vs `<Mob. No>` in one IDBI message), and that must
-  /// not defeat dedupe. The backend hashes the same way.
-  static String _smsKey(String s) => s.replaceAll(RegExp(r'\s+'), '');
 
   Future<void> _loadLocal() async {
     final prefs = await SharedPreferences.getInstance();

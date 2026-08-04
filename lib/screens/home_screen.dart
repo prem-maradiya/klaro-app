@@ -13,6 +13,7 @@ import '../widgets/category_donut.dart';
 import '../widgets/edit_expense_sheet.dart';
 import '../widgets/import_text_sheet.dart';
 import '../widgets/income_sheet.dart';
+import '../widgets/klaro_button.dart';
 import '../widgets/oneoff_sheet.dart';
 import '../widgets/spending_chart.dart';
 import 'budgets_screen.dart';
@@ -220,6 +221,12 @@ class _Body extends StatelessWidget {
         return CustomScrollView(
           slivers: [
             SliverToBoxAdapter(child: _SummaryCard(provider: provider)),
+            // Fresh install that has captured a payment or two but never pulled
+            // in the inbox history — offer it once, compactly.
+            if (provider.needsHistoryImport)
+              SliverToBoxAdapter(
+                child: _HistoryImportCard(provider: provider, compact: true),
+              ),
             if (provider.budgetReviewQueue.isNotEmpty)
               SliverToBoxAdapter(
                 child: _BudgetReviewCard(
@@ -769,11 +776,122 @@ class _ExpenseTile extends StatelessWidget {
   }
 }
 
+/// First-run offer to pull in the bank SMS already sitting in the phone's inbox,
+/// so a new install opens with real spending instead of a blank screen (the
+/// single biggest "this app doesn't work" moment). Shown until the user imports
+/// or dismisses — then never again.
+class _HistoryImportCard extends StatelessWidget {
+  const _HistoryImportCard({required this.provider, this.compact = false});
+
+  final ExpenseProvider provider;
+
+  /// Compact banner (some data already present) vs. the full empty-state pitch.
+  final bool compact;
+
+  Future<void> _import(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final r = await provider.importHistory();
+    // Distinguish "nothing in the inbox" from "the inbox is already tracked" —
+    // the latter is the normal result for a returning user on a new phone.
+    final message = r.added > 0
+        ? 'Imported ${r.added} transaction${r.added == 1 ? '' : 's'} from your inbox'
+        : r.found > 0
+            ? 'Already up to date — those payments are all tracked'
+            : 'No bank messages found in your inbox yet';
+    messenger.showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final busy = provider.importingHistory;
+    const months = ExpenseProvider.historyImportMonths;
+
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 16, vertical: compact ? 8 : 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Klaro.raised,
+        borderRadius: BorderRadius.circular(Klaro.radiusLg),
+        border: Border.all(color: Klaro.violet.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  gradient: Klaro.gradient,
+                  borderRadius: BorderRadius.circular(Klaro.radiusMd),
+                ),
+                child: const Icon(Icons.history, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Bring in your past spending',
+                  style: TextStyle(
+                    fontFamily: Klaro.display,
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w600,
+                    color: Klaro.text,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            'Your phone already has months of bank messages. Klaro can read the '
+            'last $months months right here on your device — so you start with a '
+            'full picture instead of an empty screen.',
+            style: TextStyle(color: Klaro.textMuted, fontSize: 12.5, height: 1.45),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: KlaroButton(
+                  onPressed: busy ? null : () => _import(context),
+                  label: busy ? 'Importing…' : 'Import last $months months',
+                  icon: busy ? null : Icons.download_outlined,
+                  loading: busy,
+                ),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: busy ? null : provider.dismissHistoryImport,
+                child: const Text('Not now',
+                    style: TextStyle(color: Klaro.textMuted, fontSize: 12.5)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<ExpenseProvider>();
+    // A fresh install with an unread inbox: lead with the import offer instead
+    // of a dead-end "no expenses yet".
+    if (provider.needsHistoryImport) {
+      return Center(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [_HistoryImportCard(provider: provider)],
+          ),
+        ),
+      );
+    }
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,

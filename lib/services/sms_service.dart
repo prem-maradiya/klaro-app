@@ -604,11 +604,23 @@ class SmsService {
     return null;
   }
 
-  // Read existing SMS from inbox (for initial import)
-  Future<List<Expense>> importInboxExpenses({int maxMessages = 400}) async {
-    final messages = await _telephony.getInboxSms(
-      columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
-    );
+  // Read existing SMS from inbox (for initial import). [sinceMs] optionally
+  // limits how far back to look (epoch ms) — used by the first-run history
+  // import to pull, say, the last 6 months instead of the entire inbox.
+  Future<List<Expense>> importInboxExpenses({
+    int maxMessages = 400,
+    int? sinceMs,
+  }) async {
+    final messages = sinceMs == null
+        ? await _telephony.getInboxSms(
+            columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
+          )
+        : await _telephony.getInboxSms(
+            columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
+            filter:
+                SmsFilter.where(SmsColumn.DATE).greaterThan(sinceMs.toString()),
+            sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
+          );
     return _parseMessages(messages.take(maxMessages));
   }
 
