@@ -55,34 +55,39 @@ categories and names you prefer.
 
 ## Architecture
 
-Klaro is one product across three repos: the **Flutter app** (this repo) does the
-on-device SMS capture, a **FastAPI backend** provides multi-tenant sync + an AI
-parser fallback, and a **React dashboard** offers a web view of the same data.
-Identity, storage and row-level isolation are handled by Supabase.
+Klaro is one product across three repos: the **Flutter app** (this repo) does all
+SMS capture **and parsing on-device**, a **FastAPI backend** syncs only the
+*cleaned* transaction list, and a **React dashboard** offers a web view of the same
+data. Identity, storage and row-level isolation are handled by Supabase.
+
+> **Privacy by construction.** The raw SMS, account numbers, balances and UPI IDs
+> never leave the phone — there is no cloud parsing and no LLM anywhere in the
+> pipeline. The backend receives merchant, amount, category and date, plus a
+> one-way hash used only for de-duplication.
 
 ```mermaid
 flowchart TD
     subgraph Phone["📱 Android device"]
         SMS["Bank / UPI<br/>transaction SMS"]
         APP["Klaro app<br/>(Flutter)"]
-        LOCAL[("On-device queue<br/>SharedPreferences")]
+        PARSE["On-device parser<br/>(regex · no network)"]
+        LOCAL[("On-device store<br/>raw SMS stays here")]
         SMS -->|broadcast receiver| APP
+        APP --> PARSE
         APP <--> LOCAL
     end
 
     subgraph Cloud["☁️ Cloud"]
         API["Klaro API<br/>(FastAPI · Vercel)"]
         SB[("Supabase<br/>Postgres + Auth + RLS")]
-        GROQ["Groq LLM<br/>(SMS parser fallback)"]
         API <--> SB
-        API -.->|unknown formats| GROQ
     end
 
     subgraph Web["🌐 Browser"]
         DASH["Klaro dashboard<br/>(React · Vite)"]
     end
 
-    APP <-->|"HTTPS + JWT<br/>(offline-first sync)"| API
+    APP <-->|"HTTPS + JWT · cleaned txns only<br/>(no raw SMS / PII)"| API
     DASH <-->|"HTTPS + JWT"| API
     APP -. "Supabase Auth (login)" .-> SB
     DASH -. "Supabase Auth (login)" .-> SB
@@ -103,8 +108,8 @@ candidate, not touching the storage logic.
 product flavors split the app in two:
 
 - **`full`** (direct APK) — keeps `READ_SMS`/`RECEIVE_SMS` for real-time auto-capture.
-- **`play`** (Play Store) — ships with **no SMS permission at all**; users import via
-  paste/forward to the compliant `POST /ingest/text` endpoint.
+- **`play`** (Play Store) — ships with **no SMS permission at all**; users paste or
+  forward a transaction message, which is parsed **on-device** by the same engine.
 
 ## Tech stack
 
@@ -114,7 +119,7 @@ product flavors split the app in two:
   `sentry_flutter` (opt-in error tracking)
 - **Backend:** FastAPI · SQLAlchemy 2.0 · psycopg3 · Supabase Postgres ·
   Supabase Auth (ES256 JWT verified via JWKS) · SlowAPI (rate limiting) ·
-  Groq (LLM parser fallback) · deployed serverless on Vercel —
+  deployed serverless on Vercel —
   [**klaro-backend**](https://github.com/prem-maradiya/klaro-backend)
 - **Dashboard:** React + Vite · Tailwind CSS · Recharts · Framer Motion —
   [**klaro-dashboard**](https://github.com/prem-maradiya/klaro-dashboard)
@@ -171,9 +176,11 @@ The app works fully offline against its on-device queue; point it at a backend i
 
 ## Privacy
 
-Klaro processes financial data **on-device**. It's transmitted only to a backend
-*you* configure, over HTTPS, scoped to your account by a verified JWT. No ads, no
-third-party trackers, data never sold.
+Klaro parses your bank SMS **entirely on-device** — the raw message, account
+numbers, balances and UPI IDs never leave the phone, and no AI/LLM service is
+involved. Only the cleaned transaction (merchant, amount, category, date) plus a
+one-way de-duplication hash syncs, over HTTPS, scoped to your account by a verified
+JWT. No ads, no third-party trackers, data never sold.
 [Full privacy policy »](https://klaro-dashboard.vercel.app/privacy.html)
 
 ## Roadmap & docs

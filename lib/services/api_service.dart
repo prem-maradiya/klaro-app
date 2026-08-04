@@ -9,26 +9,6 @@ import 'auth_service.dart';
 /// rejected, or not reachable at all.
 enum ApiTestResult { ok, unauthorized, unreachable }
 
-/// Outcome of a text-import attempt (`/ingest/text`).
-class IngestTextOutcome {
-  const IngestTextOutcome({
-    this.expense,
-    this.noTransaction = false,
-    this.unauthorized = false,
-    this.unreachable = false,
-  });
-
-  /// The created (or deduped-existing) expense, when the import succeeded.
-  final Expense? expense;
-
-  /// Backend reached but found no completed transaction in the text (422).
-  final bool noTransaction;
-  final bool unauthorized;
-  final bool unreachable;
-
-  bool get ok => expense != null;
-}
-
 class ApiService {
   static final ApiService instance = ApiService._();
   ApiService._();
@@ -134,7 +114,8 @@ class ApiService {
           .post(
             Uri.parse('$_baseUrl/expenses'),
             headers: _headers,
-            body: jsonEncode(expense.toJson()),
+            // Cleaned payload only — never the raw SMS / UPI id / balance.
+            body: jsonEncode(expense.toSyncJson()),
           )
           .timeout(const Duration(seconds: 10));
 
@@ -159,61 +140,6 @@ class ApiService {
     } catch (_) {
       return false;
     }
-  }
-
-  /// AI fallback parse for an SMS the on-device regex couldn't handle.
-  /// Returns the structured result, or null if unreachable / not a transaction.
-  Future<Map<String, dynamic>?> parseSms(String body, String sender) async {
-    try {
-      final res = await http
-          .post(
-            Uri.parse('$_baseUrl/parse-sms'),
-            headers: _headers,
-            body: jsonEncode({'body': body, 'sender': sender}),
-          )
-          .timeout(const Duration(seconds: 15));
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        if (data['is_transaction'] == true) return data;
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  /// Compliant non-SMS import: send pasted/forwarded transaction text (a UPI or
-  /// receipt SMS, or a bank email) for the backend to parse + ingest. Returns the
-  /// created/existing [Expense], or null with a reason in [IngestTextOutcome] via
-  /// [ingestTextDetailed]. This is the import path on builds without SMS access.
-  Future<Expense?> ingestText(String text, {String source = 'email'}) async {
-    final outcome = await ingestTextDetailed(text, source: source);
-    return outcome.expense;
-  }
-
-  /// Like [ingestText] but distinguishes "no transaction found" (422) from an
-  /// unreachable backend, so the UI can show the right message.
-  Future<IngestTextOutcome> ingestTextDetailed(String text,
-      {String source = 'email'}) async {
-    try {
-      final res = await http
-          .post(
-            Uri.parse('$_baseUrl/ingest/text'),
-            headers: _headers,
-            body: jsonEncode({'text': text, 'source': source}),
-          )
-          .timeout(const Duration(seconds: 20));
-      if (res.statusCode == 201 || res.statusCode == 200) {
-        return IngestTextOutcome(
-          expense: Expense.fromJson(jsonDecode(res.body) as Map<String, dynamic>),
-        );
-      }
-      if (res.statusCode == 422) {
-        return const IngestTextOutcome(noTransaction: true);
-      }
-      if (res.statusCode == 401 || res.statusCode == 403) {
-        return const IngestTextOutcome(unauthorized: true);
-      }
-    } catch (_) {}
-    return const IngestTextOutcome(unreachable: true);
   }
 
   /// Backend expenses, optionally for one month (YYYY-MM, IST-bucketed).

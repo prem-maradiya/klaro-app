@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:another_telephony/telephony.dart';
 import '../models/expense.dart';
-import 'api_service.dart';
 import 'budget_service.dart';
 import 'contacts_service.dart';
 import 'notification_service.dart';
@@ -157,10 +156,11 @@ class SmsService {
         : DateTime.now();
 
     var expense = parseExpense(body: body, sender: address, date: date);
-    // Regex couldn't parse it but it looks like a real debit -> AI fallback.
-    if (expense == null && looksLikeUnparsedTxn(address, body)) {
-      expense = await aiParseExpense(body, address, date);
-    }
+    // Regex couldn't parse it but it looks like a real debit -> capture it as an
+    // UNRECOGNIZED spend (amount only, unlabeled) so it's never silently lost and
+    // the user can categorize it in one tap. No network, no LLM — nothing leaves
+    // the device.
+    expense ??= _unrecognizedExpense(body: body, sender: address, date: date);
     if (expense == null) return;
 
     await NotificationService.instance.showTransaction(
@@ -171,6 +171,17 @@ class SmsService {
     );
 
     onNewExpense?.call(expense);
+  }
+
+  /// Parse user-pasted transaction text (the "Import from text" feature) fully
+  /// on-device — no network, no LLM. The user has explicitly said "this is a
+  /// transaction", so we satisfy the bank-sender gate with a synthetic UPI
+  /// sender and reuse the exact same parser as inbox SMS. Returns null if no
+  /// completed debit/credit can be extracted. Replaces the old cloud /ingest/text.
+  static Expense? parsePastedText(String text) {
+    // A sender containing "upi" passes _isBankSms so the normal parser runs;
+    // everything downstream (debit/credit/amount/merchant) is identical.
+    return parseExpense(body: text, sender: 'pasted-upi', date: DateTime.now());
   }
 
   // Parses a single SMS body — returns null if it doesn't look like a debit.
@@ -329,7 +340,7 @@ class SmsService {
 
   // True when an SMS looks like a bank debit (from a bank, has an amount, not a
   // non-transaction/credit) but our regex did NOT recognise the debit format —
-  // a candidate for the backend AI parser.
+  // a candidate for the on-device "Unrecognized" capture (never sent anywhere).
   static bool looksLikeUnparsedTxn(String sender, String body) {
     if (!_isBankSms(sender, body)) return false;
     if (_isNonTransaction(body) || _isCredit(body)) return false;
@@ -353,22 +364,27 @@ class SmsService {
     return _extractAmount(body) != null;
   }
 
-  // Asks the backend AI to parse an SMS the regex couldn't. Best-effort.
-  static Future<Expense?> aiParseExpense(
-      String body, String sender, DateTime date) async {
-    final r = await ApiService.instance.parseSms(body, sender);
-    if (r == null) return null;
-    final amount = (r['amount'] as num?)?.toDouble();
+  // A bank debit the regex couldn't fully parse. We still capture the amount
+  // (so the spend total stays correct) and keep the raw SMS on-device, marking
+  // it unlabeled so it lands in the "Needs label" tray for one-tap
+  // categorization — which trains the learning categorizer. This replaces the
+  // old cloud LLM fallback: nothing is sent off the device.
+  static Expense? _unrecognizedExpense({
+    required String body,
+    required String sender,
+    required DateTime date,
+  }) {
+    if (!looksLikeUnparsedTxn(sender, body)) return null;
+    final amount = _extractAmount(body);
     if (amount == null || amount <= 0) return null;
-    final category = r['category'] as String?;
     return Expense(
-      merchant: ((r['merchant'] as String?) ?? 'Unknown').trim(),
+      merchant: 'Unknown',
       amount: amount,
       date: date,
       rawSms: body,
-      isLabeled: category != null,
-      category: category,
-      method: (r['method'] as String?) == 'card' ? 'card' : 'upi',
+      isLabeled: false, // -> shows in the Unrecognized / Needs-label tray
+      category: null,
+      method: _isCardTxn(body) ? 'card' : 'upi',
     );
   }
 
@@ -593,7 +609,7 @@ class SmsService {
     final messages = await _telephony.getInboxSms(
       columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
     );
-    return _parseMessages(messages.take(maxMessages), maxAiParses: 25);
+    return _parseMessages(messages.take(maxMessages));
   }
 
   /// Catch-up scan: parse only the inbox SMS that arrived after [sinceMs]
@@ -607,13 +623,11 @@ class SmsService {
       filter: SmsFilter.where(SmsColumn.DATE).greaterThan(sinceMs.toString()),
       sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
     );
-    return _parseMessages(messages, maxAiParses: 5);
+    return _parseMessages(messages);
   }
 
-  Future<List<Expense>> _parseMessages(Iterable<SmsMessage> messages,
-      {required int maxAiParses}) async {
+  Future<List<Expense>> _parseMessages(Iterable<SmsMessage> messages) async {
     final expenses = <Expense>[];
-    final aiCandidates = <Map<String, dynamic>>[];
     for (final msg in messages) {
       final body = msg.body ?? '';
       final address = msg.address ?? '';
@@ -621,20 +635,11 @@ class SmsService {
           ? DateTime.fromMillisecondsSinceEpoch(msg.date!)
           : DateTime.now();
 
-      final expense = parseExpense(body: body, sender: address, date: date);
-      if (expense != null) {
-        expenses.add(expense);
-      } else if (looksLikeUnparsedTxn(address, body)) {
-        aiCandidates.add({'body': body, 'sender': address, 'date': date});
-      }
-    }
-
-    // Anything the regex couldn't parse but looks like a real bank debit goes
-    // to the backend AI parser (capped to keep AI calls reasonable).
-    for (final c in aiCandidates.take(maxAiParses)) {
-      final e = await aiParseExpense(
-          c['body'] as String, c['sender'] as String, c['date'] as DateTime);
-      if (e != null) expenses.add(e);
+      // Parse on-device; anything that looks like a real debit but doesn't fully
+      // parse is captured as an Unrecognized spend (never sent off-device).
+      final expense = parseExpense(body: body, sender: address, date: date) ??
+          _unrecognizedExpense(body: body, sender: address, date: date);
+      if (expense != null) expenses.add(expense);
     }
     return expenses;
   }

@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/expense_provider.dart';
-import '../services/api_service.dart';
+import '../services/sms_service.dart';
 import '../theme/klaro.dart';
 import 'klaro_button.dart';
 
 /// Paste / forward a transaction's text (a UPI or receipt SMS, or a bank email)
-/// and let the backend extract + file it. This is the import path on builds
-/// without SMS access (the Play build), and a handy fallback on any build.
+/// and Klaro extracts + files it — entirely ON-DEVICE (same parser as inbox
+/// SMS, no network). This is the import path on builds without SMS access (the
+/// Play build), and a handy fallback on any build.
 class ImportTextSheet extends StatefulWidget {
   const ImportTextSheet({super.key});
 
@@ -43,28 +44,31 @@ class _ImportTextSheetState extends State<ImportTextSheet> {
       return;
     }
     setState(() => _busy = true);
-    final outcome = await ApiService.instance.ingestTextDetailed(text);
+    // Parse on-device — the pasted text never leaves the phone.
+    final expense = SmsService.parsePastedText(text);
     if (!mounted) return;
     setState(() => _busy = false);
 
-    if (outcome.ok) {
-      await context.read<ExpenseProvider>().addBackendExpense(outcome.expense!);
-      if (!mounted) return;
-      Navigator.pop(context);
+    if (expense == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(
-            'Imported ₹${outcome.expense!.amount.toStringAsFixed(2)} · '
-            '${outcome.expense!.merchant}')),
+        const SnackBar(
+          content: Text(
+              "Couldn't find a transaction in that text. Paste the full bank/UPI message."),
+        ),
       );
       return;
     }
 
-    final message = outcome.noTransaction
-        ? "Couldn't find a transaction in that text. Paste the full bank/UPI message."
-        : outcome.unauthorized
-            ? 'Sign-in expired — please sign in again.'
-            : 'Could not reach the server. Check your connection and try again.';
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    // Add locally (and sync the cleaned record if the dashboard is enabled).
+    await context.read<ExpenseProvider>().addExpense(expense);
+    if (!mounted) return;
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Imported ₹${expense.amount.toStringAsFixed(2)} · '
+            '${expense.merchant}'),
+      ),
+    );
   }
 
   @override

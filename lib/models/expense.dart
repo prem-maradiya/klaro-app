@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+
 class Expense {
   final int? id;
   final String merchant;
@@ -57,6 +60,17 @@ class Expense {
   /// Synced means the backend has this expense AND all local edits to it.
   bool get isSynced => id != null && !dirty;
 
+  /// One-way SHA-256 of the raw SMS with whitespace removed. Sent to the backend
+  /// purely as a dedupe token for re-imports/retries — it is NOT reversible to
+  /// the message, so the raw SMS itself never leaves the device. Matches the
+  /// server's hashing (whitespace-stripped, utf-8, hex) so dedupe stays stable.
+  /// Null for entries with no SMS (manual adds), which simply skip dedupe.
+  String? get syncHash {
+    final stripped = rawSms.replaceAll(RegExp(r'\s+'), '');
+    if (stripped.isEmpty) return null;
+    return sha256.convert(utf8.encode(stripped)).toString();
+  }
+
   Expense copyWith({
     int? id,
     String? merchant,
@@ -101,6 +115,30 @@ class Expense {
         'in_budget': inBudget,
         'budget_review': budgetReview,
         // Local-only sync state; the backend ignores unknown fields.
+        'dirty': dirty,
+      };
+
+  /// Cleaned payload uploaded to the backend / web dashboard. Privacy boundary:
+  /// this DELIBERATELY omits `raw_sms` and `upi_id` — the raw bank message,
+  /// account numbers, payer names and balances NEVER leave the device. Only the
+  /// curated transaction (merchant, amount, category, date + derived flags) and a
+  /// one-way [syncHash] for dedupe are sent.
+  ///
+  /// `source` is sent explicitly because the server used to infer it from the
+  /// presence of `raw_sms` — which we no longer upload.
+  Map<String, dynamic> toSyncJson() => {
+        if (id != null) 'id': id,
+        'merchant': merchant,
+        'amount': amount,
+        'date': date.toIso8601String(),
+        'is_labeled': isLabeled,
+        'category': category,
+        'method': method,
+        'direction': direction,
+        'in_budget': inBudget,
+        'budget_review': budgetReview,
+        'source': rawSms.trim().isNotEmpty ? 'sms' : 'manual',
+        if (syncHash != null) 'raw_sms_hash': syncHash,
         'dirty': dirty,
       };
 

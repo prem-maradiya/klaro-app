@@ -591,7 +591,7 @@ class ExpenseProvider extends ChangeNotifier {
   }
 
   /// Store an expense the backend already created (e.g. via text-import through
-  /// `/ingest/text`). It carries its server id and final category, so we just
+  /// a server-side import). It carries its server id and final category, so we just
   /// add it locally — no re-POST. Skips duplicates by id and content.
   Future<void> addBackendExpense(Expense expense) async {
     if (expense.id != null && _expenses.any((e) => e.id == expense.id)) return;

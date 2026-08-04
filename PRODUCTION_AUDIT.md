@@ -12,8 +12,8 @@
 Tick these as the app is finished. Ordered by priority. Detail for each is in the sections below.
 
 ### 🔴 Must fix before any store launch
-- [ ] **1. Privacy/data-safety honesty** — SMS bodies are sent to Groq, but the policy says "on-device, not shared." Disclose Groq processing in `privacy.html` + Play data-safety, **or** redact PII before the call. *(legal/policy blocker)*
-- [ ] **2. In-app account deletion** — add `DELETE /account` (wipes expenses, budgets, dismissals, learned categories) + a Settings action with typed-confirm. *(Play policy blocker)*
+- [x] **1. Privacy/data-safety honesty** — ✅ DONE (2026-07-18). Resolved by *removing the cloud dependency entirely* rather than disclosing it. Measured first: on-device parser handled **185/185 (0% LLM fallback)** on a real inbox, so Groq was deleted from both repos. Unparsed bank debits now become on-device "Unrecognized" entries (one-tap categorize → feeds the learning categorizer); pasted text parses locally too. Sync sends only merchant/amount/category/date + a one-way SHA-256 dedupe hash — never `raw_sms`, account no., balance or UPI id. `privacy.html`, `security.html` + both READMEs rewritten to match. Covered by 8-sample `privacy_sync_test.dart` (asserts zero PII in the upload) + 4 backend tests. *Remaining: update the Play Data Safety form to match.*
+- [x] **2. In-app account deletion** — ✅ DONE (2026-06-23). `DELETE /account` wipes all four user tables in one txn + deletes the Supabase auth record via the admin API; Settings → Danger zone has a typed-DELETE confirm that also clears local data and signs out. 4 tests, deployed & verified. *Remaining: set `SUPABASE_SERVICE_ROLE_KEY` in Vercel env so the auth record (not just the data) is removed.*
 - [ ] **3. Turn on monitoring** — set the 3 Sentry DSNs; stop swallowing non-offline errors in `api_service.dart`.
 - [ ] **4. Effective rate limiting** — `memory://` is per-instance on serverless → ineffective. Move to Upstash Redis `storage_uri`.
 - [ ] **5. Build & verify the `play` AAB** — confirm zero SMS perms via `aapt`; create the Play Console account.

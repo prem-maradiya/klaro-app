@@ -22,6 +22,11 @@ dependencies:
   # HTTP client for FastAPI backend
   http: ^1.2.0
 
+  # SHA-256 of the raw SMS (whitespace-stripped) so the backend can dedupe
+  # re-imports WITHOUT ever receiving the message text. One-way, not reversible —
+  # the raw SMS never leaves the device (privacy: on-device parsing only).
+  crypto: ^3.0.0
+
   # Local notifications for unknown UPI IDs
   flutter_local_notifications: ^17.2.4
 
