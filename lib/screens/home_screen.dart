@@ -275,6 +275,101 @@ class _Body extends StatelessWidget {
   }
 }
 
+/// Budget pacing: the daily allowance left, and where the month is heading at
+/// the current rate. Turns Klaro from a record of the past into guidance for
+/// today. Hidden entirely when no monthly budget is set — there's nothing
+/// meaningful to divide up, and a fake number would be worse than none.
+class _PacingRow extends StatelessWidget {
+  const _PacingRow({required this.provider});
+  final ExpenseProvider provider;
+
+  @override
+  Widget build(BuildContext context) {
+    final safe = provider.safeToSpendToday;
+    if (safe == null) return const SizedBox.shrink();
+
+    final projected = provider.projectedMonthEnd;
+    final over = provider.isPacingOverBudget;
+    final days = provider.daysLeftThisMonth;
+    final exhausted = safe <= 0;
+
+    // Amber once the pace overshoots, red once the budget is actually spent —
+    // an honest signal, not alarm for its own sake.
+    final tone = exhausted
+        ? Klaro.danger
+        : over
+            ? Klaro.alert
+            : Klaro.positive;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(Klaro.radiusMd),
+        border: Border.all(color: tone.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      exhausted ? 'Budget used up' : 'Safe to spend today',
+                      style: TextStyle(
+                          color: tone, fontSize: 12.5, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      exhausted
+                          ? 'You\'re over your monthly budget'
+                          : '$days day${days == 1 ? '' : 's'} left this month',
+                      style: const TextStyle(
+                          color: Klaro.textMuted, fontSize: 11.5),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '₹${safe.toStringAsFixed(0)}',
+                style: Klaro.figures(size: 22, weight: FontWeight.w600)
+                    .copyWith(color: tone),
+              ),
+            ],
+          ),
+          // Forward look — a warning while there's still time to act on it.
+          if (projected != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(over ? Icons.trending_up : Icons.check_circle_outline,
+                    size: 13, color: over ? Klaro.alert : Klaro.textMuted),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    over
+                        ? 'At this pace you\'ll reach ₹${projected.toStringAsFixed(0)} this month'
+                        : 'On track for ₹${projected.toStringAsFixed(0)} this month',
+                    style: TextStyle(
+                      color: over ? Klaro.alert : Klaro.textMuted,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _SummaryCard extends StatelessWidget {
   const _SummaryCard({required this.provider});
   final ExpenseProvider provider;
@@ -315,11 +410,19 @@ class _SummaryCard extends StatelessWidget {
           ),
           ListenableBuilder(
             listenable: BudgetService.instance,
-            builder: (context, _) => _BudgetBar(
-              // Budget tracks day-to-day spend; large one-off / fee payments are
-              // held out (shown separately below) so they can't falsely blow it.
-              spent: provider.budgetedThisMonth,
-              limit: BudgetService.instance.overall,
+            builder: (context, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _BudgetBar(
+                  // Budget tracks day-to-day spend; large one-off / fee payments
+                  // are held out (shown below) so they can't falsely blow it.
+                  spent: provider.budgetedThisMonth,
+                  limit: BudgetService.instance.overall,
+                ),
+                // Turns "what you spent" into "what you can spend" — the
+                // question a user actually opens the app with.
+                _PacingRow(provider: provider),
+              ],
             ),
           ),
           // Make the held-out one-off spend visible so the headline total still

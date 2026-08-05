@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../config/build_config.dart';
 import '../models/expense.dart';
 import '../services/api_service.dart';
+import '../services/budget_pacing.dart';
 import '../services/budget_service.dart';
 import '../services/contacts_service.dart';
 import '../services/sms_service.dart';
@@ -203,6 +204,39 @@ class ExpenseProvider extends ChangeNotifier {
             !e.isIncome &&
             e.inBudget)
         .fold(0.0, (sum, e) => sum + e.amount);
+  }
+
+  // --- Budget pacing -------------------------------------------------------
+  // Klaro records what you spent; these turn that into what you can spend. All
+  // of them work off [budgetedThisMonth], so a college fee or other one-off
+  // held out of the budget can't distort the daily allowance.
+
+  /// Days remaining in this month, counting today. See [BudgetPacing.daysLeft].
+  int get daysLeftThisMonth => BudgetPacing.daysLeft(DateTime.now());
+
+  /// What can still be spent TODAY without breaking the monthly budget. Null
+  /// when no overall budget is set; 0 once the budget is used up.
+  double? get safeToSpendToday => BudgetPacing.safeToSpend(
+        limit: BudgetService.instance.overall,
+        spent: budgetedThisMonth,
+        daysLeft: daysLeftThisMonth,
+      );
+
+  /// Where this month's day-to-day spending lands if the current pace holds.
+  /// Null early in the month, when there's too little to extrapolate from.
+  double? get projectedMonthEnd => BudgetPacing.projectedMonthEnd(
+        limit: BudgetService.instance.overall,
+        spent: budgetedThisMonth,
+        today: DateTime.now(),
+      );
+
+  /// True when the current pace lands over the monthly budget — the cue to warn
+  /// the user while they can still change course.
+  bool get isPacingOverBudget {
+    final projected = projectedMonthEnd;
+    final limit = BudgetService.instance.overall;
+    if (projected == null || limit == null || limit <= 0) return false;
+    return projected > limit;
   }
 
   /// Large one-off / fee spend this month that the user excluded from the budget
