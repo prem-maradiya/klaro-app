@@ -6,6 +6,19 @@ import 'api_service.dart';
 import 'notification_service.dart';
 import 'sms_service.dart' show kLocalExpensesKey;
 
+/// Signature of a budget threshold alert.
+///
+/// Exists so the alert RULES — when to fire, how often, what happens when the
+/// month rolls over — can be tested without a notification plugin. That logic
+/// is where the subtle bugs live (firing twice, or never firing again), and
+/// none of it was reachable while the check called the plugin directly.
+typedef BudgetAlert = Future<void> Function({
+  required String label,
+  required double spent,
+  required double limit,
+  required bool exceeded,
+});
+
 /// Monthly spending limits, keyed by category name or [overallKey] for the
 /// whole month. The backend is the source of truth; a SharedPreferences cache
 /// keeps budgets usable offline AND readable from the background SMS isolate
@@ -94,6 +107,30 @@ class BudgetService extends ChangeNotifier {
   // Threshold alerts
   // ---------------------------------------------------------------------------
 
+  /// Delivery for threshold alerts. Defaults to a real notification; tests swap
+  /// in a recorder. Not a full plugin wrapper — this is the whole surface
+  /// BudgetService needs, and inventing more would be indirection for its own
+  /// sake.
+  @visibleForTesting
+  static BudgetAlert notifier = _showRealAlert;
+
+  static Future<void> _showRealAlert({
+    required String label,
+    required double spent,
+    required double limit,
+    required bool exceeded,
+  }) =>
+      NotificationService.instance.showBudgetAlert(
+          label: label, spent: spent, limit: limit, exceeded: exceeded);
+
+  static Future<void> _notify({
+    required String label,
+    required double spent,
+    required double limit,
+    required bool exceeded,
+  }) =>
+      notifier(label: label, spent: spent, limit: limit, exceeded: exceeded);
+
   /// Check every budget against this month's spend and notify when one crosses
   /// 80% (nearing) or 100% (exceeded) — once per level per month. Static and
   /// prefs-only so the background SMS isolate can run it right after storing a
@@ -115,9 +152,12 @@ class BudgetService extends ChangeNotifier {
       for (final j in jsonDecode(raw) as List<dynamic>) {
         final e = Expense.fromJson(j as Map<String, dynamic>);
         if (e.date.year != now.year || e.date.month != now.month) continue;
-        if (e.needsLabel) continue;
         if (e.isIncome) continue; // budgets cap spending, not income
         if (!e.inBudget) continue; // one-off / fee payments are held out
+        // NB: unlabeled spend counts, exactly as it does in
+        // ExpenseProvider.budgetedThisMonth. These two must agree — if the
+        // alerts used a smaller figure than the screen, a budget could read
+        // "over" while no warning ever fired.
         overallSpent += e.amount;
         final cat = e.category ?? 'Other';
         totals[cat] = (totals[cat] ?? 0) + e.amount;
@@ -152,7 +192,7 @@ class BudgetService extends ChangeNotifier {
       if (level > last) {
         fired[entry.key] = level;
         changed = true;
-        await NotificationService.instance.showBudgetAlert(
+        await _notify(
           label: entry.key == overallKey ? 'Monthly' : entry.key,
           spent: spent,
           limit: limit,
