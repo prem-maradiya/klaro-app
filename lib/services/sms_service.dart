@@ -1,58 +1,36 @@
-import 'dart:convert';
-import 'dart:ui';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:another_telephony/telephony.dart';
+import 'package:flutter/foundation.dart';
 import '../models/expense.dart';
-import 'budget_service.dart';
 import 'contacts_service.dart';
 import 'notification_service.dart';
+import 'sms_source.dart';
 
 // Local storage key shared between the app and the background isolate.
 const String kLocalExpensesKey = 'local_expenses';
-
-// Top-level background handler — runs in a SEPARATE isolate when an SMS arrives
-// while the app is closed / backgrounded. Parses it, stores it locally so it's
-// there on next launch, and fires a notification so the spend "appears" instantly.
-@pragma('vm:entry-point')
-void backgroundSmsHandler(SmsMessage message) async {
-  // Register plugins in this background isolate (SharedPreferences, notifications).
-  DartPluginRegistrant.ensureInitialized();
-
-  final body = message.body ?? '';
-  final address = message.address ?? '';
-  final date = message.date != null
-      ? DateTime.fromMillisecondsSinceEpoch(message.date!)
-      : DateTime.now();
-
-  // Contacts aren't loaded in the background isolate, so payee->Personal won't
-  // apply here; the app re-evaluates on next open.
-  final expense = SmsService.parseExpense(body: body, sender: address, date: date);
-  if (expense == null) return;
-
-  try {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(kLocalExpensesKey);
-    final list = raw != null ? (jsonDecode(raw) as List<dynamic>) : <dynamic>[];
-    list.insert(0, expense.toJson());
-    await prefs.setString(kLocalExpensesKey, jsonEncode(list));
-  } catch (_) {}
-
-  await NotificationService.instance.showTransaction(
-    merchant: expense.merchant,
-    amount: expense.amount,
-    category: expense.category ?? 'Other',
-    needsLabel: expense.needsLabel,
-  );
-
-  // Budget thresholds can be crossed by a background capture too.
-  await BudgetService.checkAlerts();
-}
 
 class SmsService {
   static final SmsService instance = SmsService._();
   SmsService._();
 
-  final Telephony _telephony = Telephony.instance;
+  // The inbox door, injected rather than constructed here — so this file never
+  // imports the SMS plugin and every method below can be exercised in a plain
+  // unit test with a fake inbox. Wired to the real implementation once, in
+  // main.dart (the composition root); see [configureSource].
+  SmsSource? _source;
+
+  SmsSource get _inbox => _source ??
+      (throw StateError(
+          'SmsSource not configured — call SmsService.instance.configureSource() '
+          'in main() before using SMS features.'));
+
+  /// Point the service at a real (or fake) inbox. Called once at startup.
+  void configureSource(SmsSource source) => _source = source;
+
+  /// True once an inbox has been wired up — lets callers skip SMS work on
+  /// builds that never configure one (e.g. the no-SMS Play flavor).
+  bool get hasSource => _source != null;
+
+  @visibleForTesting
+  void resetSourceForTest() => _source = null;
 
   static const Map<String, String> _knownMerchants = {
     'zomato': 'Zomato',
@@ -135,25 +113,20 @@ class SmsService {
   void Function(Expense)? onNewExpense;
 
   Future<bool> initialize() async {
-    final granted = await _telephony.requestSmsPermissions ?? false;
+    final granted = await _inbox.requestPermission();
     if (!granted) return false;
 
-    _telephony.listenIncomingSms(
-      onNewMessage: (SmsMessage msg) => _handleMessage(msg),
-      onBackgroundMessage: backgroundSmsHandler,
-      listenInBackground: true,
-    );
+    _inbox.listenIncoming(handleMessage);
     return true;
   }
 
   // Foreground path: app is open when the SMS arrives. The provider adds it to
   // the live list (via onNewExpense); we also fire the notification.
-  Future<void> _handleMessage(SmsMessage message) async {
-    final body = message.body ?? '';
-    final address = message.address ?? '';
-    final date = message.date != null
-        ? DateTime.fromMillisecondsSinceEpoch(message.date!)
-        : DateTime.now();
+  @visibleForTesting
+  Future<void> handleMessage(InboxMessage message) async {
+    final body = message.body;
+    final address = message.sender;
+    final date = message.date;
 
     var expense = parseExpense(body: body, sender: address, date: date);
     // Regex couldn't parse it but it looks like a real debit -> capture it as an
@@ -618,18 +591,13 @@ class SmsService {
     int maxMessages = 2000,
     int? sinceMs,
   }) async {
-    final messages = sinceMs == null
-        ? await _telephony.getInboxSms(
-            columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
-            sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
-          )
-        : await _telephony.getInboxSms(
-            columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
-            filter:
-                SmsFilter.where(SmsColumn.DATE).greaterThan(sinceMs.toString()),
-            sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
-          );
-    return _parseMessages(messages.take(maxMessages));
+    final messages = await _inbox.readInbox(
+      since: sinceMs == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(sinceMs),
+      limit: maxMessages,
+    );
+    return _parseMessages(messages);
   }
 
   /// Catch-up scan: parse only the inbox SMS that arrived after [sinceMs]
@@ -638,27 +606,22 @@ class SmsService {
   /// receiver, and a missed SMS otherwise stays invisible until a full
   /// manual import.
   Future<List<Expense>> catchUpExpenses({required int sinceMs}) async {
-    final messages = await _telephony.getInboxSms(
-      columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
-      filter: SmsFilter.where(SmsColumn.DATE).greaterThan(sinceMs.toString()),
-      sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
+    final messages = await _inbox.readInbox(
+      since: DateTime.fromMillisecondsSinceEpoch(sinceMs),
+      limit: 2000,
     );
     return _parseMessages(messages);
   }
 
-  Future<List<Expense>> _parseMessages(Iterable<SmsMessage> messages) async {
+  Future<List<Expense>> _parseMessages(Iterable<InboxMessage> messages) async {
     final expenses = <Expense>[];
     for (final msg in messages) {
-      final body = msg.body ?? '';
-      final address = msg.address ?? '';
-      final date = msg.date != null
-          ? DateTime.fromMillisecondsSinceEpoch(msg.date!)
-          : DateTime.now();
-
       // Parse on-device; anything that looks like a real debit but doesn't fully
       // parse is captured as an Unrecognized spend (never sent off-device).
-      final expense = parseExpense(body: body, sender: address, date: date) ??
-          _unrecognizedExpense(body: body, sender: address, date: date);
+      final expense =
+          parseExpense(body: msg.body, sender: msg.sender, date: msg.date) ??
+              _unrecognizedExpense(
+                  body: msg.body, sender: msg.sender, date: msg.date);
       if (expense != null) expenses.add(expense);
     }
     return expenses;
