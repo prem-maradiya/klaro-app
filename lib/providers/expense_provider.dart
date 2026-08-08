@@ -48,6 +48,16 @@ class ExpenseProvider extends ChangeNotifier {
 
   final List<Expense> _expenses = [];
 
+  ExpenseProvider();
+
+  /// Builds a provider around a fixed set of expenses, without touching SMS,
+  /// storage or the network — so the money getters (which decide what the user
+  /// sees as "spent" and "safe to spend") can be tested directly.
+  @visibleForTesting
+  ExpenseProvider.withExpenses(List<Expense> seed) {
+    _expenses.addAll(seed);
+  }
+
   // Backend ids deleted locally while the backend was unreachable — drained by
   // the sync engine so deletes are never lost.
   final List<int> _pendingDeletes = [];
@@ -91,17 +101,19 @@ class ExpenseProvider extends ChangeNotifier {
   /// offers a manual retry (which also fires automatically on reconnect).
   bool get syncFailed => _syncGaveUp && pendingSyncCount > 0;
 
-  /// Grand total of this month's spending — ALL labeled debits, including large
-  /// one-off / fee payments held out of the budget. Used for net cash flow (the
-  /// money genuinely left the account); the headline + charts use the day-to-day
-  /// figure [budgetedThisMonth] instead so a one-off can't dominate the view.
+  /// Grand total of this month's spending — every debit, including large one-off
+  /// / fee payments held out of the budget. Used for net cash flow (the money
+  /// genuinely left the account); the headline + charts use the day-to-day figure
+  /// [budgetedThisMonth] instead so a one-off can't dominate the view.
+  ///
+  /// Deliberately includes still-unlabeled rows: an uncategorized spend is still
+  /// a spend, and leaving it out understated every total on the home screen.
   double get totalThisMonth {
     final now = DateTime.now();
     return _expenses
         .where((e) =>
             e.date.year == now.year &&
             e.date.month == now.month &&
-            !e.needsLabel &&
             !e.isIncome) // income is not a spend
         .fold(0.0, (sum, e) => sum + e.amount);
   }
@@ -119,8 +131,8 @@ class ExpenseProvider extends ChangeNotifier {
   double get netThisMonth => incomeThisMonth - totalThisMonth;
 
   /// Spend per day of the current month so far (index 0 = the 1st), excluding
-  /// income, still-unlabeled rows, and one-off / fee payments held out of the
-  /// budget — same set as [budgetedThisMonth], so the bars sum to the headline.
+  /// income and one-off / fee payments held out of the budget — the same set as
+  /// [budgetedThisMonth], so the bars sum to the headline.
   /// Length = today's day-of-month. Feeds the home spending-trend chart.
   List<double> get dailySpendThisMonth {
     final now = DateTime.now();
@@ -129,7 +141,6 @@ class ExpenseProvider extends ChangeNotifier {
     for (final e in _expenses) {
       if (e.date.year != now.year ||
           e.date.month != now.month ||
-          e.needsLabel ||
           e.isIncome ||
           !e.inBudget) {
         continue;
@@ -152,9 +163,8 @@ class ExpenseProvider extends ChangeNotifier {
   }
 
   /// Total spend per calendar month for the last [count] months, oldest first
-  /// and the current month last. Excludes income and still-unlabeled rows (same
-  /// set as [totalThisMonth]); months with no spend are included as 0 so the
-  /// trend has no gaps. Feeds the Spending Trends screen.
+  /// and the current month last. Excludes income; months with no spend are
+  /// included as 0 so the trend has no gaps. Feeds the Spending Trends screen.
   List<MonthSpend> monthlySpend({int count = 6}) {
     final now = DateTime.now();
     // DateTime normalizes month underflow, so `now.month - i` rolls into prior
@@ -167,40 +177,52 @@ class ExpenseProvider extends ChangeNotifier {
     for (final e in _expenses) {
       // Day-to-day spend only — one-off / fee payments are tracked but kept out
       // of the trend so a single big month doesn't distort the pattern.
-      if (e.needsLabel || e.isIncome || !e.inBudget) continue;
+      if (e.isIncome || !e.inBudget) continue;
       final k = key(e.date);
       if (totals.containsKey(k)) totals[k] = totals[k]! + e.amount;
     }
     return [for (final m in months) (month: m, total: totals[key(m)]!)];
   }
 
+  /// Bucket for spend Klaro hasn't categorized yet. A distinct slice rather than
+  /// lumping it into "Other" (a real category the user can pick), so the donut
+  /// still adds up to the headline AND the gap is visible enough to act on.
+  static const String uncategorized = 'Uncategorized';
+
   /// Day-to-day spend per category this month (one-off / fee payments excluded),
-  /// for the home donut and the per-category budget bars.
+  /// for the home donut and the per-category budget bars. Unlabeled spend is
+  /// included under [uncategorized] so these slices reconcile with
+  /// [budgetedThisMonth] instead of quietly summing to less.
   Map<String, double> get categoryTotals {
     final now = DateTime.now();
     final totals = <String, double>{};
     for (final e in _expenses.where((e) =>
         e.date.year == now.year &&
         e.date.month == now.month &&
-        !e.needsLabel &&
         !e.isIncome &&
         e.inBudget)) {
-      final cat = e.category ?? 'Other';
+      final cat = e.needsLabel ? uncategorized : (e.category ?? 'Other');
       totals[cat] = (totals[cat] ?? 0) + e.amount;
     }
     return totals;
   }
 
-  /// Spend that counts toward the monthly budget: this month's labeled debits
-  /// MINUS large one-off / fee payments held out of the budget. This — not
-  /// [totalThisMonth] — is what the budget bar compares against the limit.
+  /// Spend that counts toward the monthly budget: this month's debits MINUS
+  /// large one-off / fee payments held out of the budget. This — not
+  /// [totalThisMonth] — is what the budget bar and [safeToSpendToday] compare
+  /// against the limit.
+  ///
+  /// Includes still-unlabeled spend. Excluding it made the headline, the budget
+  /// bar and "safe to spend" all read too optimistic — telling the user they had
+  /// more left than they did, which is the one way a budgeting app must not be
+  /// wrong. An uncategorized spend is a spend; it just shows as
+  /// [uncategorized] in the breakdown until the user names it.
   double get budgetedThisMonth {
     final now = DateTime.now();
     return _expenses
         .where((e) =>
             e.date.year == now.year &&
             e.date.month == now.month &&
-            !e.needsLabel &&
             !e.isIncome &&
             e.inBudget)
         .fold(0.0, (sum, e) => sum + e.amount);

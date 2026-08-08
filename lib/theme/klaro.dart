@@ -84,6 +84,9 @@ abstract final class Klaro {
     'Fuel': Color(0xFFFB923C),
     'Cash': Color(0xFF94A3B8),
     'Games': Color(0xFF7C5CFF),
+    // Spend Klaro hasn't categorized yet. Amber reads as "needs a look" without
+    // colliding with a real category (alert shares Food's hex).
+    'Uncategorized': Color(0xFFF2C94C),
   };
 
   static Color categoryColor(String? category) =>
