@@ -1,0 +1,51 @@
+name: CI
+
+# Every push to master and every PR. workflow_dispatch adds a "Run workflow"
+# button in the Actions tab — handy for re-running after changing a setting,
+# without having to invent a commit.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+# Pushing again while a run is still going makes the older run pointless, so
+# cancel it: stale red/green tickets are noise, and free-tier minutes are finite.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  flutter:
+    name: App · analyze + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20 # a hung job shouldn't quietly eat the monthly budget
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # PINNED, deliberately not "latest"/"stable-tracking". CI has to reproduce
+      # what builds on the dev machine or a green tick means nothing.
+      #
+      # This line is also the upgrade lever: to move Flutter, bump it HERE first.
+      # CI then tells you exactly what breaks — with the full test suite as the
+      # judge — before the new SDK ever touches your laptop or a release build.
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.29.3
+          channel: stable
+          cache: true # reuse the SDK + pub cache between runs (faster, fewer minutes)
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # Fails on errors and warnings. Info-level lints (the known `anonKey`
+      # deprecation, `print` in the parser diagnostics) stay visible in the log
+      # but don't block — a CI that is red for known-cosmetic reasons gets
+      # ignored, and an ignored CI protects nothing.
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos
+
+      - name: Test
+        run: flutter test
