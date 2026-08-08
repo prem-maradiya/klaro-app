@@ -69,6 +69,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // background (Vivo kills background apps aggressively). Skipped on the no-SMS
   // (Play) build, which has nothing running in the background to protect.
   Future<void> _maybeRequestBackgroundPermission() async {
+    // Notifications are a runtime permission from Android 13 on. POST_NOTIFICATIONS
+    // was declared in the manifest but never requested, so on a modern phone every
+    // notification — new-transaction alerts AND budget warnings — was silently
+    // dropped: the feature looked implemented and did nothing. Asked on every
+    // build, since notifications matter with or without SMS capture.
+    if (!await Permission.notification.isGranted) {
+      await Permission.notification.request();
+    }
+
     if (!kSmsEnabled) return;
     final prefs = await SharedPreferences.getInstance();
     if (prefs.getBool('battery_opt_asked') == true) return;

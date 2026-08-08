@@ -607,13 +607,21 @@ class SmsService {
   // Read existing SMS from inbox (for initial import). [sinceMs] optionally
   // limits how far back to look (epoch ms) — used by the first-run history
   // import to pull, say, the last 6 months instead of the entire inbox.
+  //
+  // ALWAYS sorted newest-first. Without an explicit sort the OS returns the
+  // inbox in its own order, so on a phone with a big inbox (13k+ messages is
+  // normal) `take(maxMessages)` silently sampled ancient messages and the user's
+  // recent payments were never even looked at — an import that "succeeded" and
+  // found nothing. The cap is a safety valve on parse time, not a filter, so it
+  // has to apply to the newest messages.
   Future<List<Expense>> importInboxExpenses({
-    int maxMessages = 400,
+    int maxMessages = 2000,
     int? sinceMs,
   }) async {
     final messages = sinceMs == null
         ? await _telephony.getInboxSms(
             columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
+            sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
           )
         : await _telephony.getInboxSms(
             columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE],
