@@ -403,20 +403,35 @@ class ExpenseProvider extends ChangeNotifier {
   /// transactions we don't already have. Self-heals captures the OS dropped:
   /// a missed background broadcast otherwise stays invisible until the user
   /// runs a full manual import.
+  ///
+  /// Visible for testing because this is where the first-run decision to offer
+  /// the history import is made — the one piece of startup that isn't reachable
+  /// through [initialize] without contacts/connectivity plugins in the way.
+  @visibleForTesting
+  Future<void> catchUpFromInbox() => _catchUpFromInbox();
+
   Future<void> _catchUpFromInbox() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final last = prefs.getInt(_catchupKey);
       final nowMs = DateTime.now().millisecondsSinceEpoch;
+      // Offer the inbox's existing history until the user has actually RESOLVED
+      // it (imported or declined) — deliberately not "until the first scan has
+      // run". Startup can reach this scan through a path that never renders the
+      // offer, and tying the two together let that call consume the first run
+      // by writing the baseline below: on the next launch the app believed it
+      // had already asked, and a new user was never offered their own history.
+      // "Has the user answered?" is the question; "is this the first scan?" is
+      // not the same question.
+      if (prefs.getBool(_historyDoneKey) != true && !_needsHistoryImport) {
+        _needsHistoryImport = true;
+        notifyListeners();
+      }
+
       if (last == null) {
-        // First run: start live capture from now, and flag that the inbox's
-        // existing history hasn't been imported yet so the home screen can
-        // offer it in one tap (rather than leaving a new user on an empty app).
+        // Nothing scanned before: start live capture from now. History is the
+        // offer above, not this scan.
         await prefs.setInt(_catchupKey, nowMs);
-        if (prefs.getBool(_historyDoneKey) != true) {
-          _needsHistoryImport = true;
-          notifyListeners();
-        }
         return;
       }
 
