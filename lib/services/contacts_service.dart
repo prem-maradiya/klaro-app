@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 
 // Loads the device contacts once and matches UPI payee names against them.
@@ -28,6 +29,24 @@ class ContactsService {
     } catch (_) {
       // Permission denied or plugin error — feature simply stays off.
     }
+  }
+
+  /// Seed the matcher with names instead of reading the address book.
+  ///
+  /// The matching rules below are pure, but they were only reachable after a
+  /// real device handed over real contacts — so the one thing worth testing
+  /// (does a merchant ever get mistaken for a friend?) could not be tested at
+  /// all. Only the LOAD needs the plugin, so only the load is stubbed here;
+  /// wrapping the whole plugin would be indirection for a single call.
+  @visibleForTesting
+  void loadNamesForTest(List<String> names) {
+    _contacts
+      ..clear()
+      ..addAll([
+        for (final n in names)
+          if (_tokenize(n).isNotEmpty) _Contact(n.trim(), _tokenize(n)),
+      ]);
+    _loaded = true;
   }
 
   // Returns the contact's display name if the payee name matches a contact,
