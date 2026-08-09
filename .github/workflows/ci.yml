@@ -33,19 +33,34 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.29.3
+          flutter-version: 3.44.9
           channel: stable
           cache: true # reuse the SDK + pub cache between runs (faster, fewer minutes)
 
       - name: Install dependencies
         run: flutter pub get
 
-      # Fails on errors and warnings. Info-level lints (the known `anonKey`
-      # deprecation, `print` in the parser diagnostics) stay visible in the log
-      # but don't block — a CI that is red for known-cosmetic reasons gets
-      # ignored, and an ignored CI protects nothing.
+      # Fails on errors and warnings. Info-level lints (the deliberate `print`
+      # calls in the parser diagnostics) stay visible in the log but don't
+      # block — a CI that is red for known-cosmetic reasons gets ignored, and an
+      # ignored CI protects nothing. lib/ itself is clean.
       - name: Analyze
         run: flutter analyze --no-fatal-infos
 
       - name: Test
         run: flutter test
+
+      # RELEASE, not debug. The SDK upgrade was trialled here with a debug build
+      # because it is faster — and that trial passed while the release build
+      # failed, because debug skips minification and release signing. A check
+      # that does not exercise what you ship does not prove what you ship.
+      #
+      # The signing keystore is not in the repo, and does not need to be: without
+      # key.properties the release type falls back to debug SIGNING while still
+      # running R8/ProGuard, which is where release-only breakage actually lives.
+      #
+      # Runs only on master: it is the slowest step by far, and its job is to
+      # guard what gets released rather than every work-in-progress push.
+      - name: Release build
+        if: github.ref == 'refs/heads/master'
+        run: flutter build apk --release --flavor full --dart-define=KLARO_SMS=true

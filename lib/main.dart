@@ -42,7 +42,9 @@ Future<void> _bootstrap() async {
   // Auth + accounts: restores any persisted session and refreshes its token.
   await Supabase.initialize(
     url: SupabaseConfig.url,
-    anonKey: SupabaseConfig.anonKey,
+    // Same value, renamed upstream: "anon key" became "publishable key" to make
+    // it obvious this one is safe to ship in the app.
+    publishableKey: SupabaseConfig.anonKey,
   );
   await ApiService.instance.init();
 

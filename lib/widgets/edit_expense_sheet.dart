@@ -147,7 +147,7 @@ class _EditExpenseSheetState extends State<EditExpenseSheet> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _category,
+              initialValue: _category,
               decoration: const InputDecoration(
                 labelText: 'Category',
                 contentPadding:
@@ -173,7 +173,7 @@ class _EditExpenseSheetState extends State<EditExpenseSheet> {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                   dense: true,
                   value: _inBudget,
-                  activeColor: Klaro.violet,
+                  activeThumbColor: Klaro.violet,
                   title: const Text('Count toward budget',
                       style: TextStyle(color: Klaro.text, fontSize: 14)),
                   subtitle: Text(

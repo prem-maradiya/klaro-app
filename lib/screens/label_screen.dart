@@ -146,7 +146,7 @@ class _LabelCardState extends State<_LabelCard> {
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
-            value: _category,
+            initialValue: _category,
             decoration: const InputDecoration(
               labelText: 'Category',
               contentPadding:
