@@ -128,12 +128,23 @@ void main() {
 
     test('exhausted retries are surfaced even while online', () async {
       final r = await report(FakeProbe(syncFailed: true, pendingChanges: 2));
-      expect(find(r, 'Syncing').status, HealthStatus.warning);
+      final c = find(r, 'Syncing');
+      expect(c.status, HealthStatus.warning);
+      expect(c.detail, contains('Nothing is lost'),
+          reason: 'a stalled upload is not lost data — say so');
+    });
+
+    test('work in progress reads as progress, not as a backlog', () async {
+      // The wording has to agree with the tick beside it: "still to upload"
+      // under a green check reads as a contradiction.
+      final c = find(await report(FakeProbe(pendingChanges: 65)), 'Syncing');
+      expect(c.status, HealthStatus.ok);
+      expect(c.detail, 'Uploading 65 changes…');
     });
 
     test('counts read naturally for one change', () async {
       final c = find(await report(FakeProbe(pendingChanges: 1)), 'Syncing');
-      expect(c.detail, contains('1 change '));
+      expect(c.detail, 'Uploading 1 change…');
     });
   });
 

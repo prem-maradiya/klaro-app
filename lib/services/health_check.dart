@@ -144,20 +144,25 @@ class HealthReport {
     if (probe.signedIn) {
       final online = await probe.backendReachable;
       final pending = probe.pendingChanges;
+      final stuck = probe.syncFailed;
+      final plural = pending == 1 ? 'change' : 'changes';
+
+      // Wording tracks the tick beside it. "Still to upload" next to a green
+      // tick reads as a contradiction; uploading in progress is simply what a
+      // healthy sync looks like mid-flight.
       checks.add(HealthCheck(
         title: 'Syncing to your account',
-        status: online
-            ? (probe.syncFailed ? HealthStatus.warning : HealthStatus.ok)
-            : HealthStatus.warning,
+        status: !online || stuck ? HealthStatus.warning : HealthStatus.ok,
         detail: !online
             ? 'Cannot reach Klaro right now. Your data is safe on this phone '
                 'and will sync when the connection returns.'
-            : pending > 0
-                ? '$pending change${pending == 1 ? '' : 's'} still to upload.'
-                : 'Everything is backed up to your account.',
-        fix: online || pending == 0
-            ? null
-            : 'Check your internet connection.',
+            : stuck
+                ? '$pending $plural could not be uploaded yet. Nothing is lost '
+                    '— Klaro keeps retrying.'
+                : pending > 0
+                    ? 'Uploading $pending $plural…'
+                    : 'Everything is backed up to your account.',
+        fix: online && !stuck ? null : 'Check your internet connection.',
       ));
     }
 
