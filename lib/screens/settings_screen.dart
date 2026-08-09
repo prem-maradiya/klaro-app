@@ -5,6 +5,8 @@ import '../config/klaro_links.dart';
 import '../providers/expense_provider.dart';
 import '../services/api_service.dart';
 import '../services/auth_service.dart';
+import '../services/device_capabilities.dart';
+import '../services/health_check.dart';
 import '../theme/klaro.dart';
 import '../widgets/klaro_button.dart';
 
@@ -70,6 +72,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _AccountCard(),
+          const SizedBox(height: 20),
+          const _HealthSection(),
           const SizedBox(height: 20),
           const Text(
             'Backend server',
@@ -367,6 +371,163 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
                   color: canDelete ? Klaro.danger : Klaro.textFaint)),
         ),
       ],
+    );
+  }
+}
+
+/// "Is Klaro actually working?" — asks the phone what Klaro is allowed to do
+/// and says so plainly. Exists because every capability the app depends on can
+/// be switched off silently (a denied permission, an OEM battery policy, a
+/// stricter Android release), leaving an app that looks fine and does nothing.
+class _HealthSection extends StatefulWidget {
+  const _HealthSection();
+
+  @override
+  State<_HealthSection> createState() => _HealthSectionState();
+}
+
+class _HealthSectionState extends State<_HealthSection> {
+  HealthReport? _report;
+  bool _running = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    setState(() => _running = true);
+    final provider = context.read<ExpenseProvider>();
+    final report = await HealthReport.run(DeviceCapabilities(
+      pendingChanges: provider.pendingSyncCount,
+      syncFailed: provider.syncFailed,
+    ));
+    if (mounted) {
+      setState(() {
+        _report = report;
+        _running = false;
+      });
+    }
+  }
+
+  static (Color, IconData) _tone(HealthStatus s) => switch (s) {
+        HealthStatus.ok => (Klaro.positive, Icons.check_circle_outline),
+        HealthStatus.warning => (Klaro.alert, Icons.error_outline),
+        HealthStatus.problem => (Klaro.danger, Icons.cancel_outlined),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final report = _report;
+    final (headColor, _) = _tone(report?.overall ?? HealthStatus.ok);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text(
+              'Is Klaro working?',
+              style: TextStyle(
+                fontFamily: Klaro.display,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Klaro.text,
+              ),
+            ),
+            const Spacer(),
+            if (_running)
+              const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+            else
+              TextButton(
+                onPressed: _run,
+                style: TextButton.styleFrom(
+                    minimumSize: const Size(0, 30),
+                    padding: const EdgeInsets.symmetric(horizontal: 8)),
+                child: const Text('Re-check',
+                    style: TextStyle(color: Klaro.violetLt, fontSize: 12.5)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          report == null
+              ? 'Checking this phone…'
+              : report.overall == HealthStatus.ok
+                  ? 'Everything Klaro needs is working on this phone.'
+                  : '${report.problemCount > 0 ? "Something needs your attention" : "Worth a look"} — details below.',
+          style: TextStyle(fontSize: 12.5, color: headColor),
+        ),
+        const SizedBox(height: 12),
+        if (report != null)
+          Container(
+            decoration: BoxDecoration(
+              color: Klaro.surface,
+              borderRadius: BorderRadius.circular(Klaro.radiusMd),
+              border: Border.all(color: Klaro.line),
+            ),
+            child: Column(
+              children: [
+                for (var i = 0; i < report.checks.length; i++)
+                  _HealthRow(
+                    check: report.checks[i],
+                    last: i == report.checks.length - 1,
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _HealthRow extends StatelessWidget {
+  const _HealthRow({required this.check, required this.last});
+  final HealthCheck check;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) {
+    final (color, icon) = _HealthSectionState._tone(check.status);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        border:
+            last ? null : const Border(bottom: BorderSide(color: Klaro.line)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 17, color: color),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(check.title,
+                    style: const TextStyle(
+                        color: Klaro.text,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w500)),
+                const SizedBox(height: 3),
+                Text(check.detail,
+                    style: const TextStyle(
+                        color: Klaro.textMuted, fontSize: 11.5, height: 1.4)),
+                if (check.fix != null) ...[
+                  const SizedBox(height: 5),
+                  Text('→ ${check.fix}',
+                      style: TextStyle(
+                          color: color, fontSize: 11.5, height: 1.35)),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
