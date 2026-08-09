@@ -33,7 +33,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: 3.29.3
+          flutter-version: 3.44.9
           channel: stable
           cache: true # reuse the SDK + pub cache between runs (faster, fewer minutes)
 
@@ -49,3 +49,10 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      # Temporary, for the SDK-upgrade trial only: analyze and test prove the
+      # Dart side still works, but say nothing about Gradle, the Android plugins
+      # or the manifest — which is where a 15-version jump is most likely to
+      # hurt. Remove once the upgrade is settled; it is too slow for every push.
+      - name: Android build check
+        run: flutter build apk --debug --flavor full --dart-define=KLARO_SMS=true
