@@ -18,7 +18,7 @@ android {
     namespace = "com.example.expense_tracker"
     compileSdk = flutter.compileSdkVersion
     // Pinned to the highest NDK required across plugins (backward compatible).
-    ndkVersion = "27.0.12077973"
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
         // Required by flutter_local_notifications (uses newer java.time APIs).
@@ -34,8 +34,18 @@ android {
     defaultConfig {
         // Klaro app identity (namespace above is unchanged — Kotlin sources keep their package).
         applicationId = "com.premm.klaro"
-        // another_telephony requires API 23+ (SMS APIs). Phone is API 31.
-        minSdk = 23
+        // 24 (Android 7.0), and not ours to choose any more. Flutter 3.44 supports
+        // API 24+, and MinSdkVersionMigration rewrites ANY literal 16-23 on this
+        // line back to flutter.minSdkVersion on every `flutter build` — see
+        // tooOldMinSdkVersionEqualsMatch in flutter_tools/.../gradle_utils.dart.
+        //
+        // Earlier commits pinned 23 to keep Android 6 phones, since
+        // another_telephony's SMS APIs land at 23. That is no longer achievable:
+        // re-pinning it survives exactly until the next build, and shipping below
+        // Flutter's own floor would mean running on an unsupported configuration.
+        // Left explicit here so the 23 -> 24 move reads as a recorded decision
+        // rather than a silent migrator side effect.
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
